@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BankPicker } from "@/components/BankPicker";
+import { Logo } from "@/components/Logo";
 import { SubscriptionCalendar } from "@/components/SubscriptionCalendar";
 
 type Account = { id: number; iban: string | null; name: string | null; last_pull_at: string | null };
@@ -12,6 +13,7 @@ type Subscription = {
   confidence?: "high" | "medium" | "low";
   evidence?: string;
   category?: string;
+  domain?: string;
 };
 type Obligation = { name: string; monthly_amount_eur: number; type: string };
 type Analysis = {
@@ -169,8 +171,13 @@ export default function SubscriptionsPage() {
                       .map((s, i) => (
                         <tr key={i} className="align-top">
                           <td className="py-3 pr-6 border-t border-line">
-                            <div className="font-semibold">{s.name}</div>
-                            <div className="text-muted text-xs mt-0.5">{s.category}</div>
+                            <div className="flex items-center gap-3">
+                              <Logo domain={s.domain} name={s.name} size={28} />
+                              <div className="min-w-0">
+                                <div className="font-semibold truncate">{s.name}</div>
+                                <div className="text-muted text-xs mt-0.5">{s.category}</div>
+                              </div>
+                            </div>
                           </td>
                           <td className="py-3 pr-6 border-t border-line text-right tabular-nums font-medium whitespace-nowrap">
                             {eur(s.monthly_amount_eur)}

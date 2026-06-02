@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Logo } from "@/components/Logo";
 
-type Upcoming = { date: string; name: string; amount_eur: number; cadence: string };
+type Upcoming = { date: string; name: string; amount_eur: number; cadence: string; domain?: string };
 
 const eur = (n: number) =>
   new Intl.NumberFormat("en-EU", {
@@ -142,7 +143,9 @@ export function SubscriptionCalendar() {
           return (
             <div
               key={day}
-              className={`relative aspect-square flex items-center justify-center rounded-md text-[12px] tabular-nums ${
+              className={`aspect-square rounded-md text-[12px] tabular-nums flex flex-col items-center ${
+                subs ? "justify-between p-1.5" : "justify-center p-1.5"
+              } ${
                 isToday
                   ? "bg-foreground text-background font-semibold"
                   : subs
@@ -154,11 +157,26 @@ export function SubscriptionCalendar() {
               title={subs ? subs.map((s) => `${s.name} ${eur(s.amount_eur)}`).join("\n") : undefined}
             >
               <span>{day}</span>
-              {subs && !isToday && (
-                <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
-                  {Array.from({ length: Math.min(subs.length, 3) }).map((_, k) => (
-                    <div key={k} className="w-1.5 h-1.5 rounded-full bg-foreground" />
+              {subs && (
+                <div className="flex items-center gap-1">
+                  {subs.slice(0, 3).map((s, k) => (
+                    <Logo
+                      key={k}
+                      domain={s.domain}
+                      name={s.name}
+                      size={16}
+                      className={isToday ? "ring-1 ring-background" : ""}
+                    />
                   ))}
+                  {subs.length > 3 && (
+                    <span
+                      className={`text-[10px] font-medium tabular-nums ${
+                        isToday ? "text-background" : "text-muted"
+                      }`}
+                    >
+                      +{subs.length - 3}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -191,6 +209,7 @@ export function SubscriptionCalendar() {
                   <div className="text-[10px] uppercase tracking-wide text-muted">{wk}</div>
                   <div className="text-lg font-semibold tabular-nums leading-tight">{day}</div>
                 </div>
+                <Logo domain={u.domain} name={u.name} size={24} className="mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm truncate">{u.name}</div>
                   <div className="text-xs text-muted">

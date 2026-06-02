@@ -10,6 +10,7 @@ type Sub = {
   merchant_strings?: string[];
   monthly_amount_eur: number;
   cadence?: "monthly" | "weekly" | "yearly" | "usage-based";
+  domain?: string;
 };
 
 /**
@@ -42,6 +43,7 @@ export async function GET() {
     name: string;
     amount_eur: number;
     cadence: string;
+    domain?: string;
   };
   const upcoming: Upcoming[] = [];
 
@@ -93,6 +95,7 @@ export async function GET() {
         name: s.name,
         amount_eur: s.monthly_amount_eur,
         cadence: s.cadence,
+        domain: s.domain,
       });
     }
   }

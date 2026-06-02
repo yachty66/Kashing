@@ -139,7 +139,8 @@ Output STRICT JSON only — no prose, no markdown fences. Schema:
       "cadence": "monthly|weekly|yearly|usage-based",
       "confidence": "high|medium|low",
       "evidence": "1-sentence why",
-      "category": "saas|media|telco|cloud|hardware-rental|gym|vpn|other"
+      "category": "saas|media|telco|cloud|hardware-rental|gym|vpn|other",
+      "domain": "netflix.com"   // primary website domain of the service, e.g. "spotify.com", "aws.amazon.com", "sim.de". OMIT this field if you genuinely don't know — never guess.
     }
   ],
   "recurring_obligations": [
@@ -175,6 +176,7 @@ export type Subscription = {
   confidence?: "high" | "medium" | "low";
   evidence?: string;
   category?: string;
+  domain?: string;
 };
 
 export type Obligation = {

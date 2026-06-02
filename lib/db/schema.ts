@@ -53,6 +53,31 @@ export const analyses = pgTable("analyses", {
 });
 
 /**
+ * Subscriptions the user has explicitly dismissed from the LLM analysis.
+ * We match by either the lowercased name OR any merchant_string overlap so
+ * that small renames between LLM runs ("Apple Services" → "Apple Services
+ * Bundle") still keep the dismissal in effect.
+ */
+export const subscriptionDismissals = pgTable("subscription_dismissals", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  merchantStrings: jsonb("merchant_strings").notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Subscriptions the user added by hand (LLM missed them). */
+export const subscriptionAdditions = pgTable("subscription_additions", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  monthlyAmountEur: text("monthly_amount_eur").notNull(), // stored as text to preserve precise decimals
+  cadence: text("cadence").notNull().default("monthly"),
+  category: text("category"),
+  domain: text("domain"),
+  evidence: text("evidence"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
  * Cached LLM commentary for the /overview page. Keyed by a SHA-256
  * fingerprint of the structured overview data we sent to the model — same
  * fingerprint = same text, no need to regenerate. New month, new pull, or

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { analyses, transactions } from "@/lib/db/schema";
+import { applyOverlay } from "@/lib/subscription-overlay";
 
 export const runtime = "nodejs";
 
@@ -9,8 +10,9 @@ type Sub = {
   name: string;
   merchant_strings?: string[];
   monthly_amount_eur: number;
-  cadence?: "monthly" | "weekly" | "yearly" | "usage-based";
+  cadence?: "monthly" | "weekly" | "yearly" | "usage-based" | string;
   domain?: string;
+  manual?: boolean;
 };
 
 /**
@@ -26,11 +28,14 @@ export async function GET() {
     .orderBy(desc(analyses.createdAt))
     .limit(1);
 
-  if (llmRows.length === 0) {
+  const llmSubs: Sub[] =
+    (llmRows[0]?.payload as { subscriptions?: Sub[] } | undefined)?.subscriptions ?? [];
+  const subs = (await applyOverlay(llmSubs)) as Sub[];
+
+  if (subs.length === 0) {
     return NextResponse.json({ upcoming: [], summary: { total_eur: 0, count: 0 } });
   }
 
-  const subs: Sub[] = ((llmRows[0].payload as { subscriptions?: Sub[] }).subscriptions ?? []);
   const txs = await db.select().from(transactions);
 
   const now = new Date();
@@ -66,7 +71,12 @@ export async function GET() {
       if (!d) continue;
       if (!latestDate || d > latestDate) latestDate = d;
     }
-    if (!latestDate) continue;
+    // Manual additions don't have transactions to anchor against — start the
+    // projection at today so they still show up in the agenda.
+    if (!latestDate) {
+      if (!s.manual) continue;
+      latestDate = new Date().toISOString().slice(0, 10);
+    }
 
     const last = new Date(latestDate);
     const candidates: Date[] = [];

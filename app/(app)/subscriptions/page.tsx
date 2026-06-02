@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AddSubscriptionModal } from "@/components/AddSubscriptionModal";
 import { BankPicker } from "@/components/BankPicker";
 import { Logo } from "@/components/Logo";
 import { SubscriptionCalendar } from "@/components/SubscriptionCalendar";
@@ -8,12 +9,15 @@ import { SubscriptionCalendar } from "@/components/SubscriptionCalendar";
 type Account = { id: number; iban: string | null; name: string | null; last_pull_at: string | null };
 type Subscription = {
   name: string;
+  merchant_strings?: string[];
   monthly_amount_eur: number;
   cadence?: string;
   confidence?: "high" | "medium" | "low";
   evidence?: string;
   category?: string;
   domain?: string;
+  manual?: boolean;
+  manual_id?: number;
 };
 type Obligation = { name: string; monthly_amount_eur: number; type: string };
 type Analysis = {
@@ -38,6 +42,7 @@ const eur = (n: number | null | undefined) =>
 export default function SubscriptionsPage() {
   const [data, setData] = useState<AnalysisResp | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState<null | "refresh" | "disconnect">(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +78,20 @@ export default function SubscriptionsPage() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function dismissSub(s: Subscription) {
+    if (s.manual && s.manual_id != null) {
+      // Manual addition — delete the row entirely
+      await fetch(`/api/subscriptions/added/${s.manual_id}`, { method: "DELETE" });
+    } else {
+      await fetch("/api/subscriptions/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: s.name, merchant_strings: s.merchant_strings ?? [] }),
+      });
+    }
+    await load();
   }
 
   async function disconnect() {
@@ -140,6 +159,7 @@ export default function SubscriptionsPage() {
               <button onClick={refresh} disabled={busy === "refresh"} className="btn btn-primary disabled:opacity-60">
                 {busy === "refresh" ? "Analyzing…" : "Pull & analyze"}
               </button>
+              <button onClick={() => setAddOpen(true)} className="btn btn-ghost text-sm">+ Add subscription</button>
               <button onClick={() => setPickerOpen(true)} className="btn btn-ghost text-sm">+ Add bank</button>
               <button onClick={disconnect} disabled={busy === "disconnect"} className="btn btn-ghost text-sm">
                 Disconnect all
@@ -169,12 +189,17 @@ export default function SubscriptionsPage() {
                     {[...a.subscriptions]
                       .sort((x, y) => (y.monthly_amount_eur || 0) - (x.monthly_amount_eur || 0))
                       .map((s, i) => (
-                        <tr key={i} className="align-top">
+                        <tr key={i} className="align-top group">
                           <td className="py-3 pr-6 border-t border-line">
                             <div className="flex items-center gap-3">
                               <Logo domain={s.domain} name={s.name} size={28} />
                               <div className="min-w-0">
-                                <div className="font-semibold truncate">{s.name}</div>
+                                <div className="font-semibold truncate flex items-center gap-2">
+                                  {s.name}
+                                  {s.manual && (
+                                    <span className="pill text-[9px] leading-tight">manual</span>
+                                  )}
+                                </div>
                                 <div className="text-muted text-xs mt-0.5">{s.category}</div>
                               </div>
                             </div>
@@ -185,7 +210,17 @@ export default function SubscriptionsPage() {
                           <td className="py-3 pr-6 border-t border-line whitespace-nowrap">
                             <span className={`pill pill-${s.confidence || "low"}`}>{s.confidence}</span>
                           </td>
-                          <td className="py-3 border-t border-line text-muted text-xs max-w-[20rem]">{s.evidence}</td>
+                          <td className="py-3 pr-2 border-t border-line text-muted text-xs max-w-[20rem]">{s.evidence}</td>
+                          <td className="py-3 border-t border-line text-right">
+                            <button
+                              onClick={() => dismissSub(s)}
+                              title={s.manual ? "Remove" : "Dismiss"}
+                              aria-label={s.manual ? "Remove subscription" : "Dismiss subscription"}
+                              className="text-muted opacity-0 group-hover:opacity-100 hover:text-foreground transition px-2 py-1 text-sm"
+                            >
+                              ✕
+                            </button>
+                          </td>
                         </tr>
                       ))}
                   </tbody>
@@ -225,6 +260,7 @@ export default function SubscriptionsPage() {
       )}
 
       {pickerOpen && <BankPicker onClose={() => setPickerOpen(false)} />}
+      {addOpen && <AddSubscriptionModal onClose={() => setAddOpen(false)} onAdded={load} />}
     </div>
   );
 }

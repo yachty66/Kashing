@@ -4,5 +4,5 @@ import { redirect } from "next/navigation";
 // feature. When hosted mode ships later, this becomes the landing/sign-in
 // page again behind a feature flag.
 export default function RootPage() {
-  redirect("/subscriptions");
+  redirect("/overview");
 }

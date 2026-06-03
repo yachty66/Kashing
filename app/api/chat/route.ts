@@ -1,20 +1,32 @@
 import { NextRequest } from "next/server";
+import { buildFinanceContext } from "@/lib/finance-context";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 /**
- * Proxy to OpenRouter's chat completions endpoint with streaming.
- * The browser POSTs `{ messages: [{role, content}, ...] }`; we forward to
- * OpenRouter using server-side env credentials and stream the SSE response
- * straight back. Never exposes the key.
+ * Streaming chat. The client sends only user/assistant turns; the server
+ * loads the user's live financial data and prepends it as the system
+ * prompt so every answer is grounded in real numbers.
  */
 export async function POST(req: NextRequest) {
-  const { messages } = (await req.json()) as {
+  const body = (await req.json()) as {
     messages: { role: "user" | "assistant" | "system"; content: string }[];
   };
 
+  // Strip any system messages from the client — only the server controls
+  // the system prompt. Keeps the data layer trusted.
+  const turns = (body.messages ?? []).filter((m) => m.role !== "system");
+
   if (!process.env.OPENROUTER_API_KEY) {
     return new Response("OPENROUTER_API_KEY not set", { status: 500 });
+  }
+
+  let systemPrompt: string;
+  try {
+    systemPrompt = await buildFinanceContext();
+  } catch (e) {
+    return new Response(`Failed to load financial context: ${e}`, { status: 500 });
   }
 
   const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -22,12 +34,12 @@ export async function POST(req: NextRequest) {
     headers: {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:3001",
-      "X-Title": "finance-app",
+      "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "http://localhost:3001",
+      "X-Title": "finance-app chat",
     },
     body: JSON.stringify({
       model: process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4.5",
-      messages,
+      messages: [{ role: "system", content: systemPrompt }, ...turns],
       stream: true,
     }),
   });

@@ -4,13 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV: { href: string; label: string; icon: () => React.ReactNode }[] = [
-  { href: "/overview", label: "Overview", icon: OverviewIcon },
-  { href: "/subscriptions", label: "Subscriptions", icon: SubsIcon },
+  { href: "/subscriptions", label: "Contracts", icon: SubsIcon },
+  { href: "/analysis", label: "Analysis", icon: AnalysisIcon },
   { href: "/transactions", label: "Transactions", icon: TxIcon },
-  { href: "/categories", label: "Categories", icon: CategoriesIcon },
-  { href: "/budgets", label: "Budgets", icon: BudgetsIcon },
-  { href: "/forecast", label: "Forecast", icon: ForecastIcon },
-  { href: "/net-worth", label: "Net worth", icon: NetWorthIcon },
   { href: "/chat", label: "AI Chat", icon: ChatIcon },
 ];
 
@@ -20,7 +16,7 @@ export function Sidebar() {
   return (
     <aside className="w-60 shrink-0 border-r border-line bg-sidebar flex flex-col">
       <div className="px-5 py-5 border-b border-line">
-        <Link href="/overview" className="font-semibold tracking-tight text-foreground">
+        <Link href="/analysis" className="font-semibold tracking-tight text-foreground">
           finance-app
         </Link>
       </div>
@@ -50,17 +46,6 @@ export function Sidebar() {
 const stroke = "currentColor";
 const sw = "1.75";
 
-function OverviewIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="9" />
-      <rect x="14" y="3" width="7" height="5" />
-      <rect x="14" y="12" width="7" height="9" />
-      <rect x="3" y="16" width="7" height="5" />
-    </svg>
-  );
-}
-
 function SubsIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -70,50 +55,20 @@ function SubsIcon() {
   );
 }
 
+function AnalysisIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <path d="M7 14l4-4 4 4 5-7" />
+    </svg>
+  );
+}
+
 function TxIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 7h14M17 7l-3-3M17 7l-3 3" />
       <path d="M21 17H7M7 17l3-3M7 17l3 3" />
-    </svg>
-  );
-}
-
-function CategoriesIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-      <rect x="14" y="14" width="7" height="7" />
-    </svg>
-  );
-}
-
-function BudgetsIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="5" />
-      <circle cx="12" cy="12" r="1.5" fill={stroke} />
-    </svg>
-  );
-}
-
-function ForecastIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 17l6-6 4 4 8-8" />
-      <path d="M14 7h7v7" />
-    </svg>
-  );
-}
-
-function NetWorthIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12a9 9 0 1 1-9-9v9z" />
-      <path d="M21 12a9 9 0 0 0-9-9v9z" fill={stroke} fillOpacity="0.18" />
     </svg>
   );
 }

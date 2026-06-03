@@ -19,6 +19,7 @@ export async function GET() {
       debtorName: transactions.debtorName,
       memo: transactions.memo,
       status: transactions.status,
+      category: transactions.category,
       accountName: accounts.displayName,
       accountIban: accounts.iban,
     })

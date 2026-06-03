@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts, analyses, transactions } from "@/lib/db/schema";
-import { listTransactions } from "@/lib/gocardless";
+import { getAccountBalance, listTransactions } from "@/lib/gocardless";
 import { detectHeuristic, detectLLM, writeBrief, type Tx } from "@/lib/detect";
 
 export const runtime = "nodejs";
@@ -61,7 +61,22 @@ export async function POST() {
         raw: raw as unknown as object,
       });
     }
-    await db.update(accounts).set({ lastPullAt: new Date() }).where(eq(accounts.id, acct.id));
+    // Cache the live balance too (best-effort) so the Net worth page has
+    // fresh numbers without its own GoCardless round-trip.
+    let balanceCents: number | null = null;
+    try {
+      const bal = await getAccountBalance(acct.gocardlessId);
+      if (bal) balanceCents = bal.cents;
+    } catch {
+      // ignore — keep the previously cached balance
+    }
+    await db
+      .update(accounts)
+      .set({
+        lastPullAt: new Date(),
+        ...(balanceCents != null ? { balanceCents, balanceUpdatedAt: new Date() } : {}),
+      })
+      .where(eq(accounts.id, acct.id));
   }
 
   // Load every transaction for analysis
@@ -104,11 +119,25 @@ export async function POST() {
   }
   await db.insert(analyses).values({ kind: "brief", payload: { text: brief } });
 
+  // Categorize transactions in the same flow. Best-effort — if it fails,
+  // surface a warning but don't lose the analysis we just generated.
+  let categorized: { categorized: number; llm_calls: number } | null = null;
+  try {
+    const r = await fetch(
+      `${(process.env.PUBLIC_BASE_URL ?? "http://localhost:3001").replace(/\/$/, "")}/api/categorize`,
+      { method: "POST" },
+    );
+    if (r.ok) categorized = await r.json();
+  } catch (e) {
+    console.warn("categorize step failed", e);
+  }
+
   return NextResponse.json({
     ok: true,
     analysis: llm,
     brief,
     transactions: allTxRows.length,
     account_errors: errors,
+    categorized,
   });
 }

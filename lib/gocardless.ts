@@ -136,6 +136,38 @@ export async function getAccountDetails(accountId: string): Promise<{ account?: 
   return call(`/accounts/${accountId}/details/`);
 }
 
+export type GoCardlessBalance = {
+  balanceAmount: { amount: string; currency: string };
+  balanceType?: string; // 'closingBooked' | 'interimAvailable' | 'expected' | …
+  referenceDate?: string;
+};
+
+/**
+ * Current balances for an account. GoCardless returns several balance types;
+ * we prefer the "available"/"closingBooked" view and fall back to whatever
+ * the bank gives. Returns the chosen balance in integer cents, or null if the
+ * account exposes none. NOTE: this endpoint is rate-limited hard by GoCardless
+ * (a handful of calls per account per day) — call it sparingly and cache.
+ */
+export async function getAccountBalance(
+  accountId: string,
+): Promise<{ cents: number; currency: string; type?: string; date?: string } | null> {
+  const r = await call<{ balances: GoCardlessBalance[] }>(`/accounts/${accountId}/balances/`);
+  const balances = r.balances ?? [];
+  if (balances.length === 0) return null;
+  const pref = ["interimAvailable", "closingBooked", "expected", "interimBooked", "openingBooked"];
+  const chosen =
+    pref.map((t) => balances.find((b) => b.balanceType === t)).find(Boolean) ?? balances[0];
+  if (!chosen) return null;
+  const cents = Math.round(parseFloat(chosen.balanceAmount.amount) * 100);
+  return {
+    cents,
+    currency: chosen.balanceAmount.currency,
+    type: chosen.balanceType,
+    date: chosen.referenceDate,
+  };
+}
+
 export type GoCardlessTransaction = {
   transactionId?: string;
   internalTransactionId?: string;

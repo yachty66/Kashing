@@ -13,6 +13,7 @@ export type Tx = {
   bookingDate: string | null;
   valueDate: string | null;
   creditorName: string | null;
+  debtorName?: string | null;
   memo: string | null;
 };
 

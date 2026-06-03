@@ -4,10 +4,9 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-const SYSTEM_PROMPT = `You are a financial assistant inside a personal finance app.
-You'll eventually have access to the user's transaction history and detected
-subscriptions; for now, you only have the conversation context. Be concise,
-direct, and useful. Answer in the language the user writes in.`;
+// The system prompt — including all the user's transactions, subscriptions,
+// and account context — is built and injected by the server in /api/chat.
+// The client only sends user/assistant turns.
 
 export function ChatUI() {
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -37,7 +36,7 @@ export function ChatUI() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "system", content: SYSTEM_PROMPT }, ...next],
+          messages: next,
         }),
       });
 
@@ -102,9 +101,26 @@ export function ChatUI() {
       <div className="flex-1 overflow-y-auto px-8 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
           {messages.length === 0 && (
-            <div className="text-muted text-sm">
-              Ask anything about your finances. Connecting transaction data is
-              the next milestone — for now you can chat with the model directly.
+            <div className="text-muted text-sm space-y-3">
+              <p>
+                Ask anything about your finances. The model has live access to
+                every transaction, your detected subscriptions, your account
+                balances, and monthly summaries.
+              </p>
+              <div className="text-foreground/80 text-xs uppercase tracking-wide mt-4">
+                Try
+              </div>
+              <ul className="space-y-1.5 text-foreground/80">
+                {[
+                  "How much did I spend on groceries last month?",
+                  "What's my biggest subscription, and is it worth it?",
+                  "Show me every charge from Amazon in the last 30 days.",
+                  "Did I receive my paycheck this month?",
+                  "Which of my subscriptions look forgotten?",
+                ].map((q, i) => (
+                  <li key={i}>· {q}</li>
+                ))}
+              </ul>
             </div>
           )}
           {messages.map((m, i) => (

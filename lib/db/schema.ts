@@ -19,6 +19,11 @@ export const accounts = pgTable("accounts", {
   iban: text("iban"),
   displayName: text("display_name"),
   lastPullAt: timestamp("last_pull_at", { withTimezone: true }),
+  // Latest live balance pulled from GoCardless (/accounts/{id}/balances/).
+  // Cached here because GoCardless rate-limits balance calls hard — the
+  // net-worth page reads this cached value and only re-pulls on demand.
+  balanceCents: bigint("balance_cents", { mode: "number" }),
+  balanceUpdatedAt: timestamp("balance_updated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -38,11 +43,29 @@ export const transactions = pgTable(
     memo: text("memo"),
     status: text("status").notNull().default("booked"),
     raw: jsonb("raw").notNull(),
+    category: text("category"),
   },
   (t) => ({
     uniqAccountTx: uniqueIndex("uniq_account_tx").on(t.accountId, t.gocardlessId),
   }),
 );
+
+/**
+ * Per-merchant category assignments. Serves two purposes:
+ *   - LLM cache: once the LLM has categorized a merchant, we don't ask again
+ *     on subsequent pulls (source = 'llm')
+ *   - User override: when the user changes a merchant's category, the
+ *     override wins forever (source = 'user')
+ *
+ * `key` is the normalized merchant identifier — see lib/categories.ts.
+ */
+export const merchantCategories = pgTable("merchant_categories", {
+  key: text("key").primaryKey(),
+  category: text("category").notNull(),
+  source: text("source").notNull(), // 'llm' | 'user' | 'rule'
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 /** Snapshot of each analysis run — kind = 'heuristic' | 'llm' | 'brief'. */
 export const analyses = pgTable("analyses", {
@@ -88,6 +111,56 @@ export const overviewCommentaries = pgTable("overview_commentaries", {
   fingerprint: text("fingerprint").notNull().unique(),
   text: text("text").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Per-category monthly spending cap. One row per category. UI shows a
+ * progress bar; the sidebar can later surface a badge when any category
+ * is over. `category` matches the string Category type from lib/categories.
+ */
+export const budgets = pgTable("budgets", {
+  id: serial("id").primaryKey(),
+  category: text("category").notNull().unique(),
+  monthlyCapCents: bigint("monthly_cap_cents", { mode: "number" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Manual assets the bank API can't see — cash, brokerage accounts, crypto,
+ * property, a car. `kind` lets the same table back both assets and
+ * liabilities so the net-worth math is a single signed sum:
+ *   kind = 'asset'     → adds to net worth
+ *   kind = 'liability' → subtracts (credit-card debt, mortgage, loans)
+ * valueCents is always stored as a positive magnitude; the kind decides sign.
+ */
+export const manualEntries = pgTable("manual_entries", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull(), // 'asset' | 'liability'
+  name: text("name").notNull(),
+  valueCents: bigint("value_cents", { mode: "number" }).notNull(),
+  category: text("category"), // free-form: savings, investment, property, mortgage, loan…
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * One net-worth snapshot per calendar month (ym = 'YYYY-MM', unique). The
+ * current month's row is upserted every time the net-worth page loads, so
+ * the chart keeps its memory even if the user later disconnects a bank.
+ * `breakdown` keeps the per-account / per-entry detail for that point in
+ * time so history stays meaningful after balances change.
+ */
+export const netWorthSnapshots = pgTable("net_worth_snapshots", {
+  id: serial("id").primaryKey(),
+  ym: text("ym").notNull().unique(), // 'YYYY-MM'
+  bankCents: bigint("bank_cents", { mode: "number" }).notNull().default(0),
+  manualAssetCents: bigint("manual_asset_cents", { mode: "number" }).notNull().default(0),
+  liabilityCents: bigint("liability_cents", { mode: "number" }).notNull().default(0),
+  netCents: bigint("net_cents", { mode: "number" }).notNull(),
+  breakdown: jsonb("breakdown").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 /** Chat conversations (already existed). */

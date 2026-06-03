@@ -12,6 +12,7 @@ type Row = {
   debtorName: string | null;
   memo: string | null;
   status: string;
+  category: string | null;
   accountName: string | null;
   accountIban: string | null;
 };
@@ -138,6 +139,7 @@ export default function TransactionsPage() {
                 <th className="font-medium px-4 py-3 border-b border-line">Date</th>
                 <th className="font-medium px-4 py-3 border-b border-line">Merchant</th>
                 <th className="font-medium px-4 py-3 border-b border-line text-right">Amount</th>
+                <th className="font-medium px-4 py-3 border-b border-line">Category</th>
                 <th className="font-medium px-4 py-3 border-b border-line">Account</th>
                 <th className="font-medium px-4 py-3 border-b border-line">Memo</th>
               </tr>
@@ -155,6 +157,13 @@ export default function TransactionsPage() {
                     </td>
                     <td className={`px-4 py-2.5 border-t border-line text-right tabular-nums whitespace-nowrap ${r.amountCents < 0 ? "text-foreground" : "text-foreground font-semibold"}`}>
                       {fmtEur(r.amountCents, r.currency)}
+                    </td>
+                    <td className="px-4 py-2.5 border-t border-line whitespace-nowrap">
+                      {r.category ? (
+                        <span className="pill">{r.category}</span>
+                      ) : (
+                        <span className="text-muted text-xs">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 border-t border-line text-muted whitespace-nowrap">
                       {r.accountName ?? r.accountIban ?? "—"}

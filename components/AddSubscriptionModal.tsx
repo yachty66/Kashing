@@ -60,7 +60,7 @@ export function AddSubscriptionModal({
         className="card w-full max-w-md flex flex-col"
       >
         <div className="px-6 py-4 border-b border-line flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Add subscription</h2>
+          <h2 className="text-lg font-semibold">Add contract</h2>
           <button type="button" onClick={onClose} className="btn btn-ghost text-sm" aria-label="Close">✕</button>
         </div>
 
@@ -124,8 +124,10 @@ export function AddSubscriptionModal({
           </div>
 
           <p className="text-xs text-muted leading-relaxed">
-            Manually added subscriptions persist across re-analyses — the next
-            <strong className="text-foreground"> Pull &amp; analyze</strong> won't overwrite them.
+            Works for anything recurring — a subscription, rent, an insurance
+            premium, a gym membership. Manually added contracts persist across
+            re-analyses; the next <strong className="text-foreground">Pull &amp; analyze</strong>{" "}
+            won&apos;t overwrite them.
           </p>
         </div>
 

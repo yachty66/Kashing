@@ -28,11 +28,27 @@ export async function GET() {
     .orderBy(desc(analyses.createdAt))
     .limit(1);
 
-  const llmSubs: Sub[] =
-    (llmRows[0]?.payload as { subscriptions?: Sub[] } | undefined)?.subscriptions ?? [];
-  const subs = (await applyOverlay(llmSubs)) as Sub[];
+  const payload = llmRows[0]?.payload as
+    | { subscriptions?: Sub[]; recurring_obligations?: { name: string; monthly_amount_eur: number; type?: string }[] }
+    | undefined;
+  const llmSubs: Sub[] = payload?.subscriptions ?? [];
+  const obligations = payload?.recurring_obligations ?? [];
 
-  if (subs.length === 0) {
+  // Subscriptions go through the user-override overlay; obligations don't (yet).
+  // We treat both as monthly-cadence recurring charges for projection.
+  const subs = (await applyOverlay(llmSubs)) as Sub[];
+  const allContracts: Sub[] = [
+    ...subs,
+    ...obligations.map((o) => ({
+      name: o.name,
+      monthly_amount_eur: o.monthly_amount_eur,
+      cadence: "monthly" as const,
+      // obligations have no merchant_strings from the LLM; we'll fuzzy-match
+      // by the obligation's name keywords against transactions.
+    })),
+  ];
+
+  if (allContracts.length === 0) {
     return NextResponse.json({ upcoming: [], summary: { total_eur: 0, count: 0 } });
   }
 
@@ -52,12 +68,15 @@ export async function GET() {
   };
   const upcoming: Upcoming[] = [];
 
-  for (const s of subs) {
+  for (const s of allContracts) {
     if (!s.cadence || s.cadence === "usage-based") continue;
 
-    const needles = (s.merchant_strings ?? [s.name])
-      .map((m) => m.toLowerCase())
-      .filter(Boolean);
+    // For subs we have explicit merchant_strings; for obligations we fall
+    // back to keywords pulled from the obligation's display name.
+    const baseNeedles = s.merchant_strings && s.merchant_strings.length > 0
+      ? s.merchant_strings
+      : nameToNeedles(s.name);
+    const needles = baseNeedles.map((m) => m.toLowerCase()).filter(Boolean);
     if (needles.length === 0) continue;
 
     // Find the latest transaction whose creditor name OR memo contains any
@@ -117,4 +136,25 @@ export async function GET() {
     upcoming,
     summary: { total_eur: Math.round(total * 100) / 100, count: upcoming.length },
   });
+}
+
+/**
+ * For obligations the LLM gives a name like "Rent (Mikhail Ushakov)" or
+ * "AOK Plus Health Insurance" — pick out the words most likely to appear in
+ * transaction memos / creditor names. Strip parens, common filler words,
+ * and short tokens.
+ */
+function nameToNeedles(name: string): string[] {
+  const STOPWORDS = new Set([
+    "the", "and", "of", "for", "to", "in", "monthly", "yearly",
+    "premium", "subscription", "membership", "service", "services",
+    "plan", "plans", "fee", "fees", "insurance", "health", "rent",
+    "loan", "repayment", "card",
+  ]);
+  const cleaned = name
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ") // drop parenthetical context
+    .replace(/[^\p{L}\p{N}\s]/gu, " ");
+  const tokens = cleaned.split(/\s+/).filter((t) => t.length > 2 && !STOPWORDS.has(t));
+  return tokens.length > 0 ? tokens : [cleaned.trim()];
 }

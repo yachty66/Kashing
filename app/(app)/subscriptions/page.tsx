@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { AddSubscriptionModal } from "@/components/AddSubscriptionModal";
 import { BankPicker } from "@/components/BankPicker";
 import { Logo } from "@/components/Logo";
@@ -19,7 +19,7 @@ type Subscription = {
   manual?: boolean;
   manual_id?: number;
 };
-type Obligation = { name: string; monthly_amount_eur: number; type: string };
+type Obligation = { name: string; monthly_amount_eur: number; type: string; evidence?: string };
 type Analysis = {
   subscriptions: Subscription[];
   recurring_obligations: Obligation[];
@@ -39,6 +39,25 @@ type AnalysisResp = {
 const eur = (n: number | null | undefined) =>
   new Intl.NumberFormat("en-EU", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0);
 
+const eur0 = (n: number | null | undefined) =>
+  new Intl.NumberFormat("en-EU", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n || 0);
+
+/** Relative-ish timestamp for the "last synced" line — short and unambiguous. */
+function syncedAt(iso: string): string {
+  const then = new Date(iso);
+  const now = new Date();
+  const ms = now.getTime() - then.getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24 && now.getDate() === then.getDate()) return `today at ${then.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 export default function SubscriptionsPage() {
   const [data, setData] = useState<AnalysisResp | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -46,6 +65,16 @@ export default function SubscriptionsPage() {
   const [busy, setBusy] = useState<null | "refresh" | "disconnect">(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggleExpand(name: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     const r = await fetch("/api/analysis");
@@ -124,12 +153,12 @@ export default function SubscriptionsPage() {
 
       {!hasAccounts ? (
         <section className="max-w-xl">
-          <h1 className="text-2xl font-semibold tracking-tight mb-2">Subscriptions</h1>
+          <h1 className="text-2xl font-semibold tracking-tight mb-2">Contracts</h1>
           <p className="text-muted text-sm mb-6 leading-relaxed">
             Connect a European bank to import transactions. We use Claude to
-            surface every recurring charge — including the ones bank apps and
-            Finanzguru miss. Read-only via GoCardless; your bank password never
-            touches this app.
+            surface every recurring charge — subscriptions, rent, loans,
+            insurance — including the ones bank apps and Finanzguru miss.
+            Read-only via GoCardless; your bank password never touches this app.
           </p>
           <button onClick={() => setPickerOpen(true)} className="btn btn-primary">
             Connect a bank
@@ -137,32 +166,57 @@ export default function SubscriptionsPage() {
         </section>
       ) : (
         <>
-          <header className="mb-6 flex items-end justify-between flex-wrap gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Your subscriptions</h1>
-              <p className="text-sm text-muted mt-1">
-                {accounts.length} account{accounts.length !== 1 ? "s" : ""} connected
+          <header className="mb-8 flex items-end justify-between flex-wrap gap-6">
+            <div className="min-w-0">
+              <div className="text-xs uppercase tracking-[0.14em] text-muted">Your contracts</div>
+              <div className="mt-3 flex items-baseline gap-2 flex-wrap">
+                <span className="text-4xl font-semibold tracking-tight tabular-nums">
+                  {eur(
+                    (a?.summary?.monthly_subscription_total_eur ?? 0) +
+                      (a?.summary?.monthly_obligation_total_eur ?? 0),
+                  )}
+                </span>
+                <span className="text-muted text-sm">/ month committed</span>
+              </div>
+              <div className="mt-3 text-xs text-muted flex items-center gap-2 flex-wrap">
                 {a && (
                   <>
-                    {" · "}
-                    {eur(a.summary?.monthly_subscription_total_eur)}/mo in subscriptions
-                    {" · "}
-                    {eur(a.summary?.monthly_obligation_total_eur)}/mo in obligations
+                    <span>
+                      <span className="text-foreground/90 tabular-nums">{eur0(a.summary?.monthly_subscription_total_eur)}</span>{" "}
+                      subscriptions
+                    </span>
+                    {(a.summary?.monthly_obligation_total_eur ?? 0) > 0 && (
+                      <>
+                        <Dot />
+                        <span>
+                          <span className="text-foreground/90 tabular-nums">{eur0(a.summary?.monthly_obligation_total_eur)}</span>{" "}
+                          fixed (rent, loans, insurance)
+                        </span>
+                      </>
+                    )}
+                    <Dot />
                   </>
                 )}
+                <span>
+                  <span className="text-foreground/90 tabular-nums">{accounts.length}</span>{" "}
+                  account{accounts.length !== 1 ? "s" : ""}
+                </span>
                 {data?.generated_at && (
-                  <> · last analyzed {new Date(data.generated_at).toLocaleString()}</>
+                  <>
+                    <Dot />
+                    <span>synced {syncedAt(data.generated_at)}</span>
+                  </>
                 )}
-              </p>
+              </div>
             </div>
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-2 items-center shrink-0">
               <button onClick={refresh} disabled={busy === "refresh"} className="btn btn-primary disabled:opacity-60">
                 {busy === "refresh" ? "Analyzing…" : "Pull & analyze"}
               </button>
-              <button onClick={() => setAddOpen(true)} className="btn btn-ghost text-sm">+ Add subscription</button>
-              <button onClick={() => setPickerOpen(true)} className="btn btn-ghost text-sm">+ Add bank</button>
+              <button onClick={() => setAddOpen(true)} className="btn btn-ghost text-sm">+ Contract</button>
+              <button onClick={() => setPickerOpen(true)} className="btn btn-ghost text-sm">+ Bank</button>
               <button onClick={disconnect} disabled={busy === "disconnect"} className="btn btn-ghost text-sm">
-                Disconnect all
+                Disconnect
               </button>
             </div>
           </header>
@@ -175,82 +229,130 @@ export default function SubscriptionsPage() {
           ) : (
             <div className="grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-6 w-full">
               <div className="card p-6 min-w-0 overflow-hidden">
-                <h2 className="text-lg font-semibold mb-3">Subscriptions</h2>
+                <h2 className="text-lg font-semibold mb-3">All contracts</h2>
                 <table className="w-full text-sm border-separate border-spacing-0">
                   <thead>
                     <tr className="text-muted text-left">
-                      <th className="font-medium pb-3 pr-6">Service</th>
+                      <th className="font-medium pb-3 pr-6">Contract</th>
                       <th className="font-medium pb-3 pr-6 text-right whitespace-nowrap">€/mo</th>
-                      <th className="font-medium pb-3 pr-6">Conf</th>
-                      <th className="font-medium pb-3">Why</th>
+                      <th className="font-medium pb-3 pr-6">Type</th>
+                      <th className="font-medium pb-3 w-8" aria-label="row actions"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {[...a.subscriptions]
+                    {[
+                      ...a.subscriptions.map((s) => ({ ...s, _kind: "subscription" as const })),
+                      ...a.recurring_obligations.map((o) => ({
+                        name: o.name,
+                        monthly_amount_eur: o.monthly_amount_eur,
+                        category: o.type,
+                        confidence: "high" as const,
+                        evidence: o.evidence,
+                        merchant_strings: undefined as string[] | undefined,
+                        domain: undefined as string | undefined,
+                        manual: false,
+                        manual_id: undefined as number | undefined,
+                        _kind: "obligation" as const,
+                      })),
+                    ]
                       .sort((x, y) => (y.monthly_amount_eur || 0) - (x.monthly_amount_eur || 0))
-                      .map((s, i) => (
-                        <tr key={i} className="align-top group">
-                          <td className="py-3 pr-6 border-t border-line">
-                            <div className="flex items-center gap-3">
-                              <Logo domain={s.domain} name={s.name} size={28} />
-                              <div className="min-w-0">
-                                <div className="font-semibold truncate flex items-center gap-2">
-                                  {s.name}
-                                  {s.manual && (
-                                    <span className="pill text-[9px] leading-tight">manual</span>
+                      .map((s, i) => {
+                        const isObligation = s._kind === "obligation";
+                        const isOpen = expanded.has(s.name);
+                        const evidence = s.evidence?.replace(/\s*[—–]\s*/g, ", ");
+                        const hasDetail = !!evidence || (s.merchant_strings && s.merchant_strings.length > 0);
+                        return (
+                          <Fragment key={`${s._kind}-${i}`}>
+                            <tr
+                              className={`align-top group ${hasDetail ? "cursor-pointer hover:bg-foreground/[0.03]" : ""}`}
+                              onClick={(e) => {
+                                if (!hasDetail) return;
+                                if ((e.target as HTMLElement).closest('[data-row-action]')) return;
+                                toggleExpand(s.name);
+                              }}
+                            >
+                              <td className="py-3 pr-6 border-t border-line">
+                                <div className="flex items-center gap-3">
+                                  <Logo domain={s.domain} name={s.name} size={28} />
+                                  <div className="min-w-0">
+                                    <div className="font-semibold truncate flex items-center gap-2">
+                                      {s.name}
+                                      {s.manual && (
+                                        <span className="pill text-[9px] leading-tight">manual</span>
+                                      )}
+                                    </div>
+                                    <div className="text-muted text-xs mt-0.5">
+                                      {isObligation ? "fixed obligation" : "subscription"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 pr-6 border-t border-line text-right tabular-nums font-medium whitespace-nowrap">
+                                {eur(s.monthly_amount_eur)}
+                              </td>
+                              <td className="py-3 pr-6 border-t border-line whitespace-nowrap">
+                                <span className="pill text-[10px]">{s.category ?? "other"}</span>
+                              </td>
+                              <td className="py-3 border-t border-line text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1">
+                                  {!isObligation && (
+                                    <button
+                                      data-row-action
+                                      onClick={(e) => { e.stopPropagation(); dismissSub(s as Subscription); }}
+                                      title={s.manual ? "Remove" : "Dismiss"}
+                                      aria-label={s.manual ? "Remove subscription" : "Dismiss subscription"}
+                                      className="text-muted opacity-0 group-hover:opacity-100 hover:text-foreground transition px-1.5 py-1 text-sm"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                  {hasDetail && (
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      aria-hidden
+                                      className={`text-foreground/60 group-hover:text-foreground transition duration-150 ${
+                                        isOpen ? "rotate-180" : ""
+                                      }`}
+                                    >
+                                      <path d="M6 9l6 6 6-6" />
+                                    </svg>
                                   )}
                                 </div>
-                                <div className="text-muted text-xs mt-0.5">{s.category}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 pr-6 border-t border-line text-right tabular-nums font-medium whitespace-nowrap">
-                            {eur(s.monthly_amount_eur)}
-                          </td>
-                          <td className="py-3 pr-6 border-t border-line whitespace-nowrap">
-                            <span className={`pill pill-${s.confidence || "low"}`}>{s.confidence}</span>
-                          </td>
-                          <td className="py-3 pr-2 border-t border-line text-muted text-xs max-w-[20rem]">{s.evidence}</td>
-                          <td className="py-3 border-t border-line text-right">
-                            <button
-                              onClick={() => dismissSub(s)}
-                              title={s.manual ? "Remove" : "Dismiss"}
-                              aria-label={s.manual ? "Remove subscription" : "Dismiss subscription"}
-                              className="text-muted opacity-0 group-hover:opacity-100 hover:text-foreground transition px-2 py-1 text-sm"
-                            >
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                              </td>
+                            </tr>
+                            {isOpen && hasDetail && (
+                              <tr>
+                                <td colSpan={4} className="border-t border-line/30 px-3 pb-4 pt-2">
+                                  <div className="pl-[44px] max-w-2xl space-y-2">
+                                    {evidence && (
+                                      <p className="text-sm text-foreground/85 leading-relaxed">{evidence}</p>
+                                    )}
+                                    {s.merchant_strings && s.merchant_strings.length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {s.merchant_strings.map((m, j) => (
+                                          <span key={j} className="pill text-[10px]" title="raw merchant string">
+                                            {m}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                   </tbody>
                 </table>
 
-                {a.recurring_obligations?.length > 0 && (
-                  <>
-                    <h2 className="text-lg font-semibold mt-8 mb-3">Other recurring (not subs)</h2>
-                    <table className="w-full text-sm border-separate border-spacing-0">
-                      <thead>
-                        <tr className="text-muted text-left">
-                          <th className="font-medium pb-3 pr-6">Item</th>
-                          <th className="font-medium pb-3 pr-6 text-right whitespace-nowrap">€/mo</th>
-                          <th className="font-medium pb-3">Type</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {a.recurring_obligations.map((o, i) => (
-                          <tr key={i}>
-                            <td className="py-3 pr-6 border-t border-line">{o.name}</td>
-                            <td className="py-3 pr-6 border-t border-line text-right tabular-nums whitespace-nowrap">
-                              {eur(o.monthly_amount_eur)}
-                            </td>
-                            <td className="py-3 border-t border-line"><span className="pill">{o.type}</span></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                )}
               </div>
 
               <SubscriptionCalendar />
@@ -263,4 +365,8 @@ export default function SubscriptionsPage() {
       {addOpen && <AddSubscriptionModal onClose={() => setAddOpen(false)} onAdded={load} />}
     </div>
   );
+}
+
+function Dot() {
+  return <span className="text-muted/40" aria-hidden>·</span>;
 }

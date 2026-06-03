@@ -98,7 +98,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl w-full">
+    <div className="p-8 w-full">
       <header className="mb-6 flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
@@ -131,10 +131,9 @@ export default function TransactionsPage() {
         </div>
       </header>
 
-      <div className="card overflow-hidden">
-        <div className="max-h-[70vh] overflow-y-auto">
-          <table className="w-full text-sm border-separate border-spacing-0">
-            <thead className="sticky top-0 bg-card z-10">
+      <div className="card">
+        <table className="w-full text-sm border-separate border-spacing-0">
+          <thead className="sticky top-0 bg-card z-10">
               <tr className="text-muted text-left">
                 <th className="font-medium px-4 py-3 border-b border-line">Date</th>
                 <th className="font-medium px-4 py-3 border-b border-line">Merchant</th>
@@ -176,7 +175,6 @@ export default function TransactionsPage() {
               })}
             </tbody>
           </table>
-        </div>
       </div>
     </div>
   );

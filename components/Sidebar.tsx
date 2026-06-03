@@ -14,7 +14,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 shrink-0 border-r border-line bg-sidebar flex flex-col">
+    <aside className="w-60 shrink-0 border-r border-line bg-sidebar flex flex-col sticky top-0 h-screen self-start">
       <div className="px-5 py-5 border-b border-line">
         <Link href="/analysis" className="font-semibold tracking-tight text-foreground">
           finance-app

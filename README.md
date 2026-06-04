@@ -9,23 +9,15 @@
 </p>
 
 <!--
-  Demo video swap instructions:
-  1. Record the demo (Loom, QuickTime, OBS).
-  2. Open any GitHub issue or PR composer here on the jacob repo,
-     drag the .mp4 into the textarea. GitHub uploads it and inserts
-     a URL of the form https://github.com/user-attachments/assets/<id>
-  3. Copy that URL, then replace the placeholder <p> block below with:
-
-       <p align="center">
-         <video src="THAT_URL" controls width="720"></video>
-       </p>
-
-     (Do not commit the comment in step 1's preview; close the composer
-     without submitting; you only needed it as an upload host.)
+  Demo video. Source URL is a GitHub user-attachments asset uploaded
+  via issue #1; the issue itself only served as an upload host. To
+  re-record: drag a new mp4 into any issue or PR composer on this
+  repo, copy the new https://github.com/user-attachments/assets/<id>
+  URL, and replace the src below.
 -->
 
 <p align="center">
-  <sub><em>Demo video coming soon.</em></sub>
+  <video src="https://github.com/user-attachments/assets/008f233b-c1fe-4e34-8f47-b5fe9f05612e" controls width="720"></video>
 </p>
 
 Jacob is a dashboard for your money. It connects to European banks via GoCardless (PSD2 open banking), pulls your transactions, finds every contract you're paying for using an LLM (not regex), and lets you ask anything about your finances in natural language. Named after Jakob Fugger, the 16th-century Augsburg banker who financed half of Renaissance Europe.

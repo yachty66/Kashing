@@ -53,7 +53,7 @@ async function generate(payload: unknown): Promise<string> {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "http://localhost:3001",
-      "X-Title": "finance-app overview",
+      "X-Title": "Jacob overview",
     },
     body: JSON.stringify({
       model: process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4.5",

@@ -17,8 +17,10 @@ export function Sidebar() {
   return (
     <aside className="w-60 shrink-0 border-r border-line bg-sidebar flex flex-col sticky top-0 h-screen self-start">
       <div className="px-5 py-5 border-b border-line">
-        <Link href="/subscriptions" className="font-semibold tracking-tight text-foreground">
-          finance-app
+        <Link href="/subscriptions" className="flex items-center gap-2.5 font-semibold tracking-tight text-foreground">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" width={26} height={26} className="rounded-md" />
+          <span className="text-lg">Jacob</span>
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

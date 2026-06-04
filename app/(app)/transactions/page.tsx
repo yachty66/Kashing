@@ -71,16 +71,6 @@ export default function TransactionsPage() {
     });
   }, [rows, query, accountFilter]);
 
-  const totals = useMemo(() => {
-    let out = 0;
-    let inc = 0;
-    for (const r of filtered) {
-      if (r.amountCents < 0) out += -r.amountCents;
-      else inc += r.amountCents;
-    }
-    return { outgoing: out, incoming: inc };
-  }, [filtered]);
-
   if (rows === null) {
     return <div className="p-8 text-muted text-sm">Loading transactions…</div>;
   }
@@ -102,13 +92,6 @@ export default function TransactionsPage() {
       <header className="mb-6 flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
-          <p className="text-sm text-muted mt-1">
-            {filtered.length.toLocaleString()} {filtered.length !== rows.length ? `of ${rows.length.toLocaleString()} ` : ""}rows
-            {" · "}
-            <span className="tabular-nums">€{(totals.outgoing / 100).toLocaleString("en-EU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> out
-            {" · "}
-            <span className="tabular-nums">€{(totals.incoming / 100).toLocaleString("en-EU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> in
-          </p>
         </div>
         <div className="flex gap-2 items-center">
           <select

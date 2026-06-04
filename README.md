@@ -1,50 +1,61 @@
-# finance-app
+# Jacob
 
-A local-first personal finance dashboard. Dark monochrome UI, dashboard with
-sidebar, two features at the moment:
+Your personal AI CFO. Local-first.
 
-1. **Subscription tracker** — connects to European banks via GoCardless (PSD2)
-   and uses an LLM to surface every recurring charge. *(Bank connect ships in
-   the next milestone — UI placeholder is in place.)*
-2. **AI Chat** — talk to your finance data through any OpenRouter model.
-   *(Transaction context will be wired alongside step 1.)*
+Jacob is a dashboard for your money. It connects to European banks via
+GoCardless (PSD2 open banking), pulls your transactions, finds every
+contract you're paying for using an LLM (not regex), and lets you ask
+questions about your finances in natural language. Named after Jakob
+Fugger, the 16th-century Augsburg banker who financed half of Renaissance
+Europe.
 
-This is the umbrella product the masterplan calls "the Mac app." It's
-intentionally **not** native macOS — it's a Next.js web app you run locally
-and open in your browser. Same code will eventually run as a self-hosted
-instance for users who want full data ownership and as a managed hosted
-product for everyone else.
+## Today
 
-## No sign-in (yet)
+1. **Contracts.** Connect a bank, get a complete list of every recurring
+   charge: subscriptions plus fixed obligations like rent, loans, and
+   insurance. An LLM does the detection, so it catches what regex-based
+   tools (Finanzguru et al.) miss: Amazon Prime under rotating IDs,
+   FX-wobbling subs, Apple bundles.
+2. **Transactions.** Searchable, filterable feed across every connected
+   account, with rule-based + LLM-assisted categorization.
+3. **AI Chat.** Talk to your finance data through any OpenRouter model.
+   The chat sees your full transaction history, contracts, and account
+   balances via a server-side system prompt.
 
-In local-first mode there's no authentication. You own the machine, you own
-the data, you open the app and you're in. When the hosted version launches,
-sign-in (Google OAuth via Neon Auth) will come back behind an `AUTH_MODE`
-flag — that scaffold lived in an earlier commit and can be resurrected.
+Coming soon: deeper analysis (overview, categories, budgets, forecast,
+net worth) and notifications (daily WhatsApp / Telegram briefs).
+
+## No sign-in
+
+In local-first mode there is no authentication. You own the machine, you
+own the data. Open the app, you're in. A hosted version with Google
+OAuth will ship later behind an `AUTH_MODE` flag.
 
 ## Stack
 
-- **Next.js 15** (App Router) + React 19 + TypeScript
-- **Tailwind 4** for styling, strict black-and-white theme
-- **Neon Postgres** + **Drizzle ORM** (will swap to SQLite for true local-first
-  packaging once the Docker / Tauri distribution lands)
-- **OpenRouter** for LLM inference
+- **Next.js 16** (App Router), React 19, TypeScript
+- **Tailwind 4**, strict black-and-white theme
+- **Neon Postgres** + **Drizzle ORM** (SQLite swap planned once
+  Docker / Tauri packaging lands)
+- **GoCardless Bank Account Data API** for PSD2 bank connections
+- **OpenRouter** for LLM inference (any model: Claude, GPT, Gemini,
+  Deepseek, etc.)
 
 ## Local dev
 
 ```bash
-cd ~/projects/personal-finance/finance-app
+git clone https://github.com/yachty66/jacob.git
+cd jacob
 npm install
-cp .env.example .env.local   # fill in DATABASE_URL + OPENROUTER_API_KEY
+cp .env.example .env.local   # fill in DATABASE_URL + OPENROUTER_API_KEY + GOCARDLESS_*
 npm run db:push              # push Drizzle schema to Neon
 npm run dev                  # http://localhost:3001
 ```
 
-Runs on **port 3001** to avoid colliding with mysubs on 3000.
-
 ## Routes
 
-- `/` → redirects to `/subscriptions`
-- `/subscriptions` — subscription tracker
-- `/chat` — AI chat (streams from OpenRouter)
-- `/api/chat` — server-side OpenRouter proxy (key never reaches the browser)
+- `/` redirects to `/subscriptions`
+- `/subscriptions` contracts page (kept the legacy URL on purpose)
+- `/transactions` transaction feed
+- `/chat` AI chat (streams from OpenRouter)
+- `/api/chat` server-side OpenRouter proxy (the key never reaches the browser)

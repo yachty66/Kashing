@@ -22,27 +22,6 @@
 
 Jacob is a dashboard for your money. It connects to European banks via GoCardless (PSD2 open banking), pulls your transactions, finds every contract you're paying for using an LLM (not regex), and lets you ask anything about your finances in natural language. Named after Jakob Fugger, the 16th-century Augsburg banker who financed half of Renaissance Europe.
 
-## What ships today
-
-| Surface | What it does |
-| --- | --- |
-| **Overview** | This month at a glance. Spend vs. last month, income, net, and the three transactions worth attention this week (largest, first-time merchant, anomalies). LLM commentary explains what changed. |
-| **Contracts** | Every recurring charge in one place: subscriptions plus fixed obligations like rent, loans, and insurance. LLM-based detection catches what regex tools (Finanzguru et al.) miss: Amazon Prime under rotating IDs, FX-wobbling foreign subs, decomposed Apple bundles. |
-| **Transactions** | Searchable, filterable feed across every connected account, with rule-based plus LLM-assisted categorization. |
-| **Forecast** | Projects your balance thirty days out using detected recurring income and spend. Tells you which day you dip below your buffer before it happens. |
-| **AI Chat** | The picture above gets compiled into a system prompt. Ask anything ("how much did I spend on groceries last month", "is my X subscription worth it") with grounded answers. Pick any model from OpenRouter's live top-weekly list. |
-
-## Why local-first
-
-Most finance apps want your data on their servers. Jacob runs on your laptop.
-
-- Bank tokens, transactions, and analyses live in your own Postgres.
-- No telemetry. No analytics. No third-party event pipeline.
-- You bring the API keys. LLM calls go straight from your machine to OpenRouter.
-- No sign-in. You opened the app, you're in.
-
-The single-user no-auth default is deliberate. A hosted multi-tenant version is on the roadmap and will sit behind an `AUTH_MODE` flag without changing the local-first default.
-
 ## Quickstart
 
 You need three free accounts. None of them charge for the volume one user produces.
@@ -91,22 +70,20 @@ OPENROUTER_MODEL=anthropic/claude-sonnet-4.6   # optional, dropdown overrides pe
 
 1. **Bank connect.** You hit Connect a bank, the server creates a GoCardless requisition, you authorize at your bank, GoCardless redirects you back. Bank credentials never touch Jacob.
 2. **Pull.** `POST /api/refresh` fetches up to ninety days of booked and pending transactions per linked account, upserts on `(account_id, gocardless_id)`.
-3. **Categorize.** Keyword rules first (transfers, salary, fees, the obvious merchants). Whatever rules don't match goes to an LLM batch in `lib/categorize.ts`. Per-merchant user overrides are stored and win forever.
+3. **Categorize.** Keyword rules first (`lib/categories.ts`, covers transfers, salary, fees, the obvious merchants). Whatever rules don't match goes to an LLM batch via `app/api/categorize/route.ts`. Per-merchant user overrides are stored and win forever.
 4. **Detect contracts.** Two passes. A heuristic looks for cadence plus amount stability. An LLM in `lib/detect.ts` catches what statistics miss: rotating transaction IDs, FX-varying foreign subs, Apple-bundle decomposition, PayPal-routed subs, single-occurrence-but-known.
 5. **Compile context.** `lib/finance-context.ts` packs everything (transactions, contracts, balances, monthly summaries) into one system prompt.
 6. **Chat.** The server holds the API key, streams from OpenRouter, the client only ever sees user and assistant turns. Top-weekly model list is fetched live from OpenRouter and cached for an hour.
 
 ## Roadmap
 
-- **Categories** page with per-merchant overrides and a stacked spend chart
-- **Budgets** page with per-category caps and auto-suggested limits from your median spend
-- **Net worth** page with manual assets and liabilities, monthly snapshots
+- Polish and surface the Analysis pages (Overview, Categories, Budgets, Forecast, Net worth) under the SOON tab
+- Notifications channel: ship the Telegram and WhatsApp daily-brief side of the SOON tab
 - Docker image for one-command self-host
 - SQLite mode (no Neon required) for true offline local-first
 - MCP server: the same context layer, queryable from Claude Desktop and Cursor
-- Hermes and Openclaw skills: the same surface from Telegram, WhatsApp, iMessage, Slack
+- iMessage and Slack as additional notification channels
 - Mobile app (Germany first, then EU)
-- Per-merchant logos
 - Subscription cancellation flows
 
 ## Contributing

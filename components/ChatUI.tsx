@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { DEFAULT_MODEL, MODEL_OPTIONS } from "@/lib/models";
+import { DEFAULT_MODEL, STATIC_TOP_MODELS, type ModelOption } from "@/lib/models";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -16,6 +16,7 @@ export function ChatUI() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [model, setModel] = useState<string>(DEFAULT_MODEL);
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>(STATIC_TOP_MODELS);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Restore last-picked model on mount. Done in an effect (not initial state)
@@ -23,6 +24,22 @@ export function ChatUI() {
   useEffect(() => {
     const saved = typeof window !== "undefined" ? window.localStorage.getItem(MODEL_STORAGE_KEY) : null;
     if (saved) setModel(saved);
+  }, []);
+
+  // Fetch the live top-weekly list once on mount. /api/models internally
+  // caches for 1h and falls back to STATIC_TOP_MODELS, so failures here
+  // just mean we keep showing whatever's already in state.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/models");
+        if (!r.ok) return;
+        const j = (await r.json()) as { models?: ModelOption[] };
+        if (Array.isArray(j.models) && j.models.length > 0) setModelOptions(j.models);
+      } catch {
+        // keep STATIC_TOP_MODELS
+      }
+    })();
   }, []);
 
   function changeModel(next: string) {
@@ -108,30 +125,27 @@ export function ChatUI() {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="px-8 py-5 border-b border-line flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">AI Chat</h1>
-          <p className="text-xs text-muted mt-1">OpenRouter · {model}</p>
-        </div>
-        <label className="flex items-center gap-2 text-xs text-muted">
-          <span className="uppercase tracking-wide">Model</span>
+      <header className="px-8 py-5 border-b border-line">
+        <h1 className="text-lg font-semibold tracking-tight">AI Chat</h1>
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted">
+          <span>OpenRouter</span>
+          <span>·</span>
           <select
-            value={MODEL_OPTIONS.some((m) => m.slug === model) ? model : ""}
+            value={modelOptions.some((m) => m.slug === model) ? model : ""}
             onChange={(e) => changeModel(e.target.value)}
             disabled={streaming}
             className="bg-card border border-line rounded px-2 py-1 text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-foreground/20 disabled:opacity-60"
           >
-            {!MODEL_OPTIONS.some((m) => m.slug === model) && (
+            {!modelOptions.some((m) => m.slug === model) && (
               <option value="">{model} (custom)</option>
             )}
-            {MODEL_OPTIONS.map((m) => (
+            {modelOptions.map((m) => (
               <option key={m.slug} value={m.slug}>
                 {m.label}
-                {m.hint ? ` — ${m.hint}` : ""}
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-8 py-6">

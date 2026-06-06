@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!b) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const amountCents = Math.round(Number(b.amountCents) || 0);
-  if (amountCents <= 0) return NextResponse.json({ error: "Betrag muss > 0 sein" }, { status: 400 });
+  if (amountCents <= 0) return NextResponse.json({ error: "Amount must be greater than 0" }, { status: 400 });
 
   // Snapshot supplier name + default banking from the supplier record.
   let supplierName = b.supplierName?.trim() || null;
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       bic = bic ?? s.bic;
     }
   }
-  if (!supplierName) return NextResponse.json({ error: "Lieferant ist erforderlich" }, { status: 400 });
+  if (!supplierName) return NextResponse.json({ error: "Supplier is required" }, { status: 400 });
 
   const [row] = await db
     .insert(bills)

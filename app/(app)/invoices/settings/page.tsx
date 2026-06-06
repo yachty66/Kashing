@@ -101,7 +101,7 @@ export default function InvoiceSettingsPage() {
               className="w-full px-3 py-2 rounded-lg border border-line bg-card text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20" />
           </Field>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="IBAN (SEPA-Absender / debtor)"><Text value={p.iban ?? ""} onChange={(v) => set("iban", v)} placeholder="DE00 0000 0000 0000 0000 00" /></Field>
+            <Field label="IBAN (SEPA sender)"><Text value={p.iban ?? ""} onChange={(v) => set("iban", v)} placeholder="DE00 0000 0000 0000 0000 00" /></Field>
             <Field label="BIC"><Text value={p.bic ?? ""} onChange={(v) => set("bic", v)} placeholder="optional" /></Field>
           </div>
           <Field label="Default footer note">

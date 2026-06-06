@@ -14,14 +14,14 @@ function csvCell(v: unknown): string {
 export async function GET() {
   const rows = await db.select().from(bills).orderBy(desc(bills.invoiceDate));
   const header = [
-    "Rechnungsdatum",
-    "Lieferant",
-    "Rechnungsnummer",
-    "Beschreibung",
-    "Betrag",
-    "Währung",
+    "Invoice date",
+    "Supplier",
+    "Invoice number",
+    "Description",
+    "Amount",
+    "Currency",
     "Status",
-    "Fällig",
+    "Due",
     "IBAN",
   ];
   const lines = [header.join(";")];

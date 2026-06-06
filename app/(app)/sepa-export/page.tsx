@@ -24,7 +24,7 @@ type ValErr = { billId: number | "entity"; supplier: string; errors: string[] };
 
 const fmt = (cents: number, cur = "EUR") => {
   try {
-    return new Intl.NumberFormat("de-DE", { style: "currency", currency: cur }).format(cents / 100);
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency: cur }).format(cents / 100);
   } catch {
     return `${(cents / 100).toFixed(2)} ${cur}`;
   }
@@ -71,7 +71,7 @@ export default function SepaExportPage() {
     setError(null);
     setValErrors([]);
     const ids = [...selected];
-    if (ids.length === 0) return setError("Bitte mindestens eine Rechnung auswählen.");
+    if (ids.length === 0) return setError("Please select at least one bill.");
     setGenerating(true);
     try {
       const r = await fetch("/api/sepa", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ billIds: ids }) });
@@ -80,7 +80,7 @@ export default function SepaExportPage() {
         setValErrors(data.validation);
         return;
       }
-      if (!r.ok) throw new Error(data.error ?? "Generierung fehlgeschlagen");
+      if (!r.ok) throw new Error(data.error ?? "Generation failed");
       setSelected(new Set());
       await load();
     } catch (err) {
@@ -90,47 +90,47 @@ export default function SepaExportPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-muted text-sm">Lädt…</div>;
+  if (loading) return <div className="p-8 text-muted text-sm">Loading…</div>;
 
   return (
     <div className="p-8 w-full">
       <header className="mb-5 flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">SEPA Export</h1>
-          <p className="text-muted text-sm mt-1">Offene Eingangsrechnungen als SEPA-Überweisung (pain.001) bündeln</p>
+          <p className="text-muted text-sm mt-1">Bundle open incoming bills into a SEPA credit transfer (pain.001) file</p>
         </div>
         <button onClick={generate} disabled={generating || selected.size === 0} className="btn btn-primary text-sm disabled:opacity-50">
-          {generating ? "Generiere…" : `Generieren${selected.size ? ` (${selected.size})` : ""}`}
+          {generating ? "Generating…" : `Generate${selected.size ? ` (${selected.size})` : ""}`}
         </button>
       </header>
 
       {error && <div className="mb-4 px-4 py-3 rounded-lg bg-card border border-foreground text-sm">{error}</div>}
       {valErrors.length > 0 && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-card border border-foreground text-sm space-y-1">
-          <div className="font-medium">Validierung fehlgeschlagen — bitte korrigieren:</div>
+          <div className="font-medium">Validation failed — please fix:</div>
           {valErrors.map((v) => (
             <div key={String(v.billId)} className="text-muted">• {v.supplier}: {v.errors.join(", ")}</div>
           ))}
-          <div className="text-xs text-muted pt-1">Tipp: Absender-IBAN unter Rechnungen → Einstellungen, Empfänger-IBAN am Lieferanten/Rechnung.</div>
+          <div className="text-xs text-muted pt-1">Tip: set the sender IBAN in Invoices → Settings, and the payee IBAN on the supplier/bill.</div>
         </div>
       )}
 
       {/* Unpaid bills */}
       <div className="card mb-6">
         <div className="px-4 py-3 border-b border-line flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Unbezahlte Rechnungen ({bills.length})</h2>
-          {selected.size > 0 && <span className="text-sm text-muted tabular-nums">Auswahl: {fmt(selectedTotal)}</span>}
+          <h2 className="text-sm font-semibold">Unpaid bills ({bills.length})</h2>
+          {selected.size > 0 && <span className="text-sm text-muted tabular-nums">Selected: {fmt(selectedTotal)}</span>}
         </div>
         {bills.length === 0 ? (
-          <div className="px-4 py-10 text-center text-muted text-sm">Keine unbezahlten Rechnungen</div>
+          <div className="px-4 py-10 text-center text-muted text-sm">No unpaid bills</div>
         ) : (
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead>
               <tr className="text-muted text-left">
                 <th className="px-4 py-3 border-b border-line w-8"><input type="checkbox" checked={allSelected} onChange={toggleAll} /></th>
-                <th className="font-medium px-4 py-3 border-b border-line">LIEFERANT</th>
-                <th className="font-medium px-4 py-3 border-b border-line">NUMMER</th>
-                <th className="font-medium px-4 py-3 border-b border-line text-right">BETRAG</th>
+                <th className="font-medium px-4 py-3 border-b border-line">SUPPLIER</th>
+                <th className="font-medium px-4 py-3 border-b border-line">NUMBER</th>
+                <th className="font-medium px-4 py-3 border-b border-line text-right">AMOUNT</th>
                 <th className="font-medium px-4 py-3 border-b border-line">IBAN</th>
               </tr>
             </thead>
@@ -141,7 +141,7 @@ export default function SepaExportPage() {
                   <td className="px-4 py-3 border-t border-line font-medium">{b.supplierName || "—"}</td>
                   <td className="px-4 py-3 border-t border-line text-muted">{b.invoiceNumber || "—"}</td>
                   <td className="px-4 py-3 border-t border-line text-right tabular-nums whitespace-nowrap">{fmt(b.amountCents, b.currency)}</td>
-                  <td className="px-4 py-3 border-t border-line text-muted tabular-nums">{b.paymentIban || <span className="text-red-500">fehlt</span>}</td>
+                  <td className="px-4 py-3 border-t border-line text-muted tabular-nums">{b.paymentIban || <span className="text-red-500">missing</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -151,18 +151,18 @@ export default function SepaExportPage() {
 
       {/* Generated files */}
       <div className="card">
-        <div className="px-4 py-3 border-b border-line"><h2 className="text-sm font-semibold">Generierte SEPA-Dateien ({files.length})</h2></div>
+        <div className="px-4 py-3 border-b border-line"><h2 className="text-sm font-semibold">Generated SEPA files ({files.length})</h2></div>
         {files.length === 0 ? (
-          <div className="px-4 py-8 text-center text-muted text-sm">Noch keine Dateien generiert</div>
+          <div className="px-4 py-8 text-center text-muted text-sm">No files generated yet</div>
         ) : (
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead>
               <tr className="text-muted text-left">
-                <th className="font-medium px-4 py-3 border-b border-line">DATEI</th>
-                <th className="font-medium px-4 py-3 border-b border-line text-right">RECHNUNGEN</th>
-                <th className="font-medium px-4 py-3 border-b border-line text-right">SUMME</th>
+                <th className="font-medium px-4 py-3 border-b border-line">FILE</th>
+                <th className="font-medium px-4 py-3 border-b border-line text-right">BILLS</th>
+                <th className="font-medium px-4 py-3 border-b border-line text-right">TOTAL</th>
                 <th className="font-medium px-4 py-3 border-b border-line">STATUS</th>
-                <th className="font-medium px-4 py-3 border-b border-line">ERSTELLT</th>
+                <th className="font-medium px-4 py-3 border-b border-line">CREATED</th>
                 <th className="font-medium px-4 py-3 border-b border-line w-24"></th>
               </tr>
             </thead>

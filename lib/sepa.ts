@@ -67,7 +67,7 @@ export function generateSepaXml(
       ? sanitize(b.invoice_number, 35)
       : toEndToEndId(String(b.id));
     const reference =
-      sanitize(b.invoice_number || b.description || String(b.id), 140) || "Zahlung";
+      sanitize(b.invoice_number || b.description || String(b.id), 140) || "Payment";
     const amount = (b.amountCents / 100).toFixed(2);
 
     const creditorBicBlock = creditorBic
@@ -155,22 +155,22 @@ export function validateSepaBills(
 
   const entityErrors: string[] = [];
   const eIban = validateIban(entity.iban);
-  if (eIban) entityErrors.push(`Absender IBAN: ${eIban}`);
+  if (eIban) entityErrors.push(`Sender IBAN: ${eIban}`);
   const eBic = validateBic(entity.bic);
-  if (eBic) entityErrors.push(`Absender BIC: ${eBic}`);
-  if (!entity.name?.trim()) entityErrors.push("Absender Name fehlt");
-  if (entityErrors.length) result.push({ billId: "entity", supplier: entity.name || "Absender", errors: entityErrors });
+  if (eBic) entityErrors.push(`Sender BIC: ${eBic}`);
+  if (!entity.name?.trim()) entityErrors.push("Sender name missing");
+  if (entityErrors.length) result.push({ billId: "entity", supplier: entity.name || "Sender", errors: entityErrors });
 
   for (const b of bills) {
     const errors: string[] = [];
-    const supplierName = b.supplier || "Unbekannt";
-    if (b.amountCents == null || b.amountCents <= 0) errors.push("Betrag fehlt oder ist 0");
-    if (b.currency && b.currency !== "EUR") errors.push(`Währung ${b.currency} — SEPA nur EUR`);
+    const supplierName = b.supplier || "Unknown";
+    if (b.amountCents == null || b.amountCents <= 0) errors.push("Amount missing or zero");
+    if (b.currency && b.currency !== "EUR") errors.push(`Currency ${b.currency} — SEPA is EUR only`);
     const ibanErr = validateIban(b.payment_iban);
     if (ibanErr) errors.push(`IBAN: ${ibanErr}`);
     const bicErr = validateBic(b.payment_bic);
     if (bicErr) errors.push(`BIC: ${bicErr}`);
-    if (!supplierName || supplierName === "Unbekannt") errors.push("Lieferantenname fehlt");
+    if (!supplierName || supplierName === "Unknown") errors.push("Supplier name missing");
     if (errors.length) result.push({ billId: b.id, supplier: supplierName, errors });
   }
   return result;

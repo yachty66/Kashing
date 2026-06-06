@@ -13,7 +13,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const b = (await req.json().catch(() => null)) as Record<string, string> | null;
-  if (!b?.name?.trim()) return NextResponse.json({ error: "Name ist erforderlich" }, { status: 400 });
+  if (!b?.name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   const [row] = await db
     .insert(suppliers)
     .values({

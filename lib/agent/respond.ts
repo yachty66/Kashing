@@ -26,11 +26,11 @@ Keep replies short and mobile-friendly — a sentence or two, no markdown headin
 Show each amount with the currency symbol exactly as it appears in the tool data (e.g. €85.20, HK$200.00); never convert between currencies. Use the tools for any real data or action; never invent numbers or IDs.`;
   if (user.role === "manager") {
     return `${common}
-You are talking to ${user.name}, the manager. You can: look up and summarize team expenses, approve/reject expenses, correct a misread expense (edit_expense), issue FPS payment QR codes to employees, create B2B invoices with an FPS QR (create_invoice), check receivables aging (ar_aging), list overdue invoices (list_overdue), and send payment reminders (send_invoice_reminder).
+You are talking to ${user.name}, the manager. You can: look up and summarize team expenses, approve/reject/edit expenses, reimburse approved expenses via FPS (reimburse_expense), set an employee's allowance/limits (set_allowance), pay a supplier via FPS (pay_supplier), issue FPS QR codes to employees, create B2B invoices with an FPS QR (create_invoice), check receivables aging (ar_aging), list overdue invoices (list_overdue), and send payment reminders (send_invoice_reminder).
 Be decisive — when an instruction is unambiguous, just do it. If they say "approve"/"reject" without an ID and there is exactly one pending expense, act on that one (the tools do this automatically). Only ask for clarification when there are genuinely multiple candidates. If they ask to fix or set an expense's amount/merchant/date, use edit_expense — don't say you can't.`;
   }
   return `${common}
-You are talking to ${user.name}, an employee. You can: generate an FPS payment QR code for them to pay on the company's behalf, and list their own expenses. To submit an expense, they simply send a photo of the receipt — you don't need a tool for that.`;
+You are talking to ${user.name}, an employee. You can: generate an FPS payment QR code for them to pay on the company's behalf (within their allowance/limits), list their own expenses, and show their remaining allowance (my_allowance). To submit an expense, they simply send a photo of the receipt — you don't need a tool for that.`;
 }
 
 async function loadHistory(userId: number): Promise<ChatMessage[]> {
@@ -125,6 +125,10 @@ export async function handleReceipt(
   const parsed = await parseReceipt(receipt.imageDataUrl);
   const amountCents = parsed.amount != null ? Math.round(parsed.amount * 100) : null;
 
+  // Auto-approve under the employee's manager-set threshold (if any).
+  const limit = user.autoApproveUnderCents;
+  const autoApproved = amountCents != null && limit != null && amountCents <= limit;
+
   const inserted = await db
     .insert(expenses)
     .values({
@@ -132,10 +136,12 @@ export async function handleReceipt(
       amountCents,
       currency: parsed.currency || "HKD",
       merchant: parsed.merchant,
+      brNumber: parsed.brNumber,
+      category: parsed.category,
       expenseDate: parsed.date,
       receiptUrl: receipt.mediaUrl,
       rawParse: parsed.raw as object,
-      status: "pending",
+      status: autoApproved ? "approved" : "pending",
     })
     .returning({ id: expenses.id });
   const id = inserted[0].id;
@@ -148,12 +154,16 @@ export async function handleReceipt(
   if (mgr) {
     await channel.send(
       mgr.phone,
-      `New expense from ${user.name}: ${amountStr}${where}${when} (#${id}). Reply "approve ${id}" or "reject ${id}".`,
+      autoApproved
+        ? `Auto-approved expense from ${user.name}: ${amountStr}${where}${when} (#${id}, under limit).`
+        : `New expense from ${user.name}: ${amountStr}${where}${when} (#${id}). Reply "approve ${id}" or "reject ${id}".`,
     );
   }
 
   await saveTurn(user.id, "user", "[sent a receipt photo]");
-  const reply = `Got your receipt — ${amountStr}${where}${when}. Submitted for approval ✅ (#${id})`;
+  const reply = autoApproved
+    ? `Got your receipt — ${amountStr}${where}${when}. Auto-approved ✅ (#${id}). It'll be reimbursed in the next run.`
+    : `Got your receipt — ${amountStr}${where}${when}. Submitted for approval ✅ (#${id})`;
   await saveTurn(user.id, "assistant", reply);
   return { text: reply };
 }

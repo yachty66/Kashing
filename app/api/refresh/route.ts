@@ -9,7 +9,7 @@ import {
   type FinverseTransaction,
 } from "@/lib/finverse";
 import { detectHeuristic, detectLLM, writeBrief, type Tx } from "@/lib/detect";
-import { autoReconcileTransactions } from "@/lib/reconcile";
+import { autoReconcileExpenses, autoReconcileTransactions } from "@/lib/reconcile";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // generous; LLM passes can take a while
@@ -153,6 +153,7 @@ export async function POST() {
   let reconciledCount = 0;
   try {
     reconciledCount = (await autoReconcileTransactions()).length;
+    await autoReconcileExpenses();
   } catch (e) {
     console.warn("auto-reconcile failed", e);
   }

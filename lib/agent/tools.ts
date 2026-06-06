@@ -1,12 +1,33 @@
-import { desc, eq, gte, ilike } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { customers, expenses, invoices, qrIssuances, users } from "@/lib/db/schema";
+import { bills, customers, expenses, invoices, qrIssuances, suppliers, users } from "@/lib/db/schema";
 import { buildFpsPayload } from "@/lib/fps-qr";
 import { findEmployeeByName, getManager, type Role, type User } from "@/lib/users";
 import { money } from "@/lib/money";
 import { buildPaymentRequest } from "@/lib/payment-request";
+import { paymentRail } from "@/lib/payment-rail";
 import { arAging, createSimpleInvoice, overdueInvoices } from "@/lib/invoice-server";
 import { invoiceQrMediaUrl, qrMediaUrl, type Channel } from "@/lib/agent/channel";
+
+function monthStartDate(): Date {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), 1);
+}
+
+/** Sum of an employee's approved/reimbursed expenses this calendar month. */
+async function employeeSpentThisMonthCents(userId: number): Promise<number> {
+  const rows = await db
+    .select({ amountCents: expenses.amountCents })
+    .from(expenses)
+    .where(
+      and(
+        eq(expenses.submittedBy, userId),
+        inArray(expenses.status, ["approved", "reimbursed"]),
+        gte(expenses.createdAt, monthStartDate()),
+      ),
+    );
+  return rows.reduce((s, r) => s + (r.amountCents ?? 0), 0);
+}
 
 export type ToolContext = { user: User; channel: Channel };
 
@@ -416,6 +437,140 @@ const sendInvoiceReminder: Tool = {
   },
 };
 
+// --- Manager tools: reimbursements, allowances, supplier payments -----------
+
+const reimburseExpense: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "reimburse_expense",
+      description: "Pay approved expense(s) back to the employee via FPS. Pass expense_id for one, or omit to reimburse all approved expenses.",
+      parameters: { type: "object", properties: { expense_id: { type: "number", description: "Optional; omit to reimburse all approved." } } },
+    },
+  },
+  async run(args, ctx) {
+    let rows;
+    if (Number.isFinite(Number(args.expense_id))) {
+      rows = await db.select().from(expenses).where(eq(expenses.id, Number(args.expense_id))).limit(1);
+      if (!rows[0]) return `No expense #${args.expense_id}.`;
+      if (rows[0].status !== "approved") return `Expense #${rows[0].id} is ${rows[0].status}, not approved.`;
+    } else {
+      rows = await db.select().from(expenses).where(eq(expenses.status, "approved"));
+      if (rows.length === 0) return "No approved expenses waiting for reimbursement.";
+    }
+
+    const rail = paymentRail();
+    let total = 0;
+    let count = 0;
+    for (const exp of rows) {
+      if (exp.amountCents == null) continue;
+      const [emp] = await db.select().from(users).where(eq(users.id, exp.submittedBy)).limit(1);
+      const res = await rail.payout({
+        amountCents: exp.amountCents,
+        currency: exp.currency,
+        toProxyType: "mobile",
+        toProxyId: emp?.phone ?? null,
+        reference: `EXP-${exp.id}`,
+        payeeName: emp?.name ?? null,
+      });
+      if (!res.ok) continue;
+      await db.update(expenses).set({ status: "reimbursed", reimbursedAt: new Date() }).where(eq(expenses.id, exp.id));
+      total += exp.amountCents;
+      count++;
+      if (emp) {
+        await ctx.channel.send(emp.phone, `Reimbursed ${money(exp.amountCents, exp.currency)} for expense #${exp.id} via FPS ✅`);
+      }
+    }
+    return `Reimbursed ${count} expense(s), ${money(total, "HKD")} total, via FPS.`;
+  },
+};
+
+const setAllowance: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "set_allowance",
+      description: "Set an employee's spending controls (all HKD; pass only what you want to change): monthly_allowance, max_single_qr, auto_approve_under. Pass 0 to clear a limit.",
+      parameters: {
+        type: "object",
+        properties: {
+          employee: { type: "string", description: "Employee name." },
+          monthly_allowance: { type: "number", description: "Monthly spend cap in HKD (0 = unlimited)." },
+          max_single_qr: { type: "number", description: "Max per QR/request in HKD (0 = no cap)." },
+          auto_approve_under: { type: "number", description: "Receipts under this HKD auto-approve (0 = always require approval)." },
+        },
+        required: ["employee"],
+      },
+    },
+  },
+  async run(args) {
+    const emp = await findEmployeeByName(String(args.employee ?? ""));
+    if (!emp) return `No employee matching "${args.employee}".`;
+    const set: Partial<typeof users.$inferInsert> = {};
+    const cents = (v: unknown) => (Number(v) > 0 ? Math.round(Number(v) * 100) : null);
+    if (args.monthly_allowance != null) set.monthlyAllowanceCents = cents(args.monthly_allowance);
+    if (args.max_single_qr != null) set.maxSingleQrCents = cents(args.max_single_qr);
+    if (args.auto_approve_under != null) set.autoApproveUnderCents = cents(args.auto_approve_under);
+    if (Object.keys(set).length === 0) return "Nothing to change — specify monthly_allowance, max_single_qr, or auto_approve_under.";
+    await db.update(users).set(set).where(eq(users.id, emp.id));
+    const [u] = await db.select().from(users).where(eq(users.id, emp.id)).limit(1);
+    return `Updated ${emp.name}: allowance ${u.monthlyAllowanceCents != null ? money(u.monthlyAllowanceCents, "HKD") + "/mo" : "unlimited"}, max/QR ${u.maxSingleQrCents != null ? money(u.maxSingleQrCents, "HKD") : "none"}, auto-approve under ${u.autoApproveUnderCents != null ? money(u.autoApproveUnderCents, "HKD") : "off"}.`;
+  },
+};
+
+const paySupplier: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "pay_supplier",
+      description: "Record and pay a supplier purchase via FPS. Creates an AP bill and marks it paid.",
+      parameters: {
+        type: "object",
+        properties: {
+          supplier: { type: "string", description: "Supplier name." },
+          amount: { type: "number", description: "Amount in HKD." },
+          description: { type: "string", description: "What the purchase is for." },
+        },
+        required: ["supplier", "amount"],
+      },
+    },
+  },
+  async run(args) {
+    const amount = Number(args.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return "Need a positive amount in HKD.";
+    const name = String(args.supplier ?? "").trim();
+    if (!name) return "Need a supplier name.";
+    let [sup] = await db.select().from(suppliers).where(ilike(suppliers.name, `%${name}%`)).limit(1);
+    if (!sup) {
+      [sup] = await db.insert(suppliers).values({ name, normalizedName: name.toLowerCase() }).returning();
+    }
+    const amountCents = Math.round(amount * 100);
+    const [bill] = await db
+      .insert(bills)
+      .values({
+        supplierId: sup.id,
+        supplierName: sup.name,
+        description: typeof args.description === "string" ? args.description : null,
+        amountCents,
+        currency: "HKD",
+        status: "paid",
+        paidAt: new Date(),
+      })
+      .returning();
+    const res = await paymentRail().payout({
+      amountCents,
+      currency: "HKD",
+      toProxyType: (sup.fpsProxyType as "mobile" | "email" | "fpsid" | null) ?? "fpsid",
+      toProxyId: sup.fpsProxyId,
+      reference: `BILL-${bill.id}`,
+      payeeName: sup.name,
+    });
+    return res.ok
+      ? `Paid ${sup.name} ${money(amountCents, "HKD")} via FPS (bill #${bill.id}).`
+      : `Recorded bill #${bill.id} for ${sup.name} but the payout failed.`;
+  },
+};
+
 // --- Employee tools ---------------------------------------------------------
 
 const requestQr: Tool = {
@@ -437,6 +592,20 @@ const requestQr: Tool = {
   async run(args, ctx) {
     const amount = Number(args.amount);
     if (!Number.isFinite(amount) || amount <= 0) return "Need a positive amount in HKD.";
+    const amountCents = Math.round(amount * 100);
+
+    // Enforce the manager-set controls on this employee.
+    if (ctx.user.maxSingleQrCents != null && amountCents > ctx.user.maxSingleQrCents) {
+      return `That's over your per-payment limit of ${money(ctx.user.maxSingleQrCents, "HKD")}. Ask your manager to raise it.`;
+    }
+    if (ctx.user.monthlyAllowanceCents != null) {
+      const spent = await employeeSpentThisMonthCents(ctx.user.id);
+      if (spent + amountCents > ctx.user.monthlyAllowanceCents) {
+        const left = ctx.user.monthlyAllowanceCents - spent;
+        return `That would exceed your monthly allowance (${money(ctx.user.monthlyAllowanceCents, "HKD")}; ${money(Math.max(0, left), "HKD")} left). Ask your manager.`;
+      }
+    }
+
     const purpose = typeof args.purpose === "string" ? args.purpose : undefined;
 
     const payload = buildFpsPayload({ amount, reference: purpose ?? "Expense" });
@@ -499,6 +668,27 @@ const listMyExpenses: Tool = {
   },
 };
 
+const myAllowance: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "my_allowance",
+      description: "Show your spending allowance, per-payment limit, and how much is left this month.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  async run(_args, ctx) {
+    const spent = await employeeSpentThisMonthCents(ctx.user.id);
+    const allowance = ctx.user.monthlyAllowanceCents;
+    return JSON.stringify({
+      monthly_allowance: allowance != null ? money(allowance, "HKD") : "unlimited",
+      spent_this_month: money(spent, "HKD"),
+      remaining: allowance != null ? money(Math.max(0, allowance - spent), "HKD") : "unlimited",
+      max_per_payment: ctx.user.maxSingleQrCents != null ? money(ctx.user.maxSingleQrCents, "HKD") : "none",
+    });
+  },
+};
+
 const MANAGER_TOOLS: Tool[] = [
   listExpenses,
   expenseSummary,
@@ -506,12 +696,15 @@ const MANAGER_TOOLS: Tool[] = [
   rejectExpense,
   editExpense,
   issueQr,
+  reimburseExpense,
+  setAllowance,
+  paySupplier,
   createInvoice,
   arAgingTool,
   listOverdueTool,
   sendInvoiceReminder,
 ];
-const EMPLOYEE_TOOLS: Tool[] = [requestQr, listMyExpenses];
+const EMPLOYEE_TOOLS: Tool[] = [requestQr, listMyExpenses, myAllowance];
 
 export function toolsForRole(role: Role): { schemas: OpenAiTool[]; byName: Map<string, Tool> } {
   const tools = role === "manager" ? MANAGER_TOOLS : EMPLOYEE_TOOLS;

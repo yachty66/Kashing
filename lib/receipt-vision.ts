@@ -11,15 +11,19 @@ export type ParsedReceipt = {
   currency: string; // ISO 4217, defaults HKD
   merchant: string | null;
   date: string | null; // 'YYYY-MM-DD'
+  brNumber: string | null; // HK Business Registration Number (8 digits) if shown
+  category: string | null;
   raw: unknown;
 };
 
-const PROMPT = `You are reading a payment receipt. Extract these fields and reply with ONLY a JSON object, no prose, no markdown fence:
-{"amount": number|null, "currency": string, "merchant": string|null, "date": "YYYY-MM-DD"|null}
+const PROMPT = `You are reading a payment receipt for a Hong Kong company's bookkeeping. Extract these fields and reply with ONLY a JSON object, no prose, no markdown fence:
+{"amount": number|null, "currency": string, "merchant": string|null, "date": "YYYY-MM-DD"|null, "br_number": string|null, "category": string|null}
 - amount: the grand total actually paid, as a number (no currency symbol).
 - currency: ISO 4217 code; if a HK$ / HKD receipt, use "HKD". Default "HKD" if unclear.
 - merchant: the shop/restaurant name.
-- date: the transaction date in YYYY-MM-DD, or null if not visible.`;
+- date: the transaction date in YYYY-MM-DD, or null if not visible.
+- br_number: the merchant's Hong Kong Business Registration Number if printed (usually 8 digits, sometimes labelled BR/BRN/商業登記). null if not visible.
+- category: a short expense category (e.g. "Meals", "Transport", "Office supplies", "Software"). null if unclear.`;
 
 /** Pull the first JSON object out of a model response (handles ``` fences). */
 function extractJson(text: string): Record<string, unknown> | null {
@@ -79,11 +83,21 @@ export async function parseReceipt(imageDataUrl: string): Promise<ParsedReceipt>
         ? Number(amountRaw)
         : null;
 
+  const brRaw = parsed.br_number;
+  const brNumber =
+    typeof brRaw === "string" && brRaw.trim() !== ""
+      ? brRaw.trim()
+      : typeof brRaw === "number"
+        ? String(brRaw)
+        : null;
+
   return {
     amount,
     currency: typeof parsed.currency === "string" ? parsed.currency : "HKD",
     merchant: typeof parsed.merchant === "string" ? parsed.merchant : null,
     date: typeof parsed.date === "string" ? parsed.date : null,
+    brNumber,
+    category: typeof parsed.category === "string" ? parsed.category : null,
     raw: content,
   };
 }

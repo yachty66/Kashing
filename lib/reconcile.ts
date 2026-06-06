@@ -1,6 +1,6 @@
-import { gt } from "drizzle-orm";
+import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { invoicePayments, transactions } from "@/lib/db/schema";
+import { expenses, invoicePayments, transactions } from "@/lib/db/schema";
 import { openReceivables, reconciledTransactionIds, syncInvoicePaymentState } from "@/lib/invoice-server";
 import { money } from "@/lib/money";
 
@@ -79,6 +79,48 @@ export async function autoReconcileTransactions(): Promise<AutoMatch[]> {
 
   if (matches.length > 0) void notifyManager(matches);
   return matches;
+}
+
+/**
+ * Outgoing mirror: link a reimbursement's bank debit back to its expense
+ * claim (tier-1: "EXP-<id>" in the memo + matching amount). Lets the books
+ * prove which debit settled which approved claim.
+ */
+export async function autoReconcileExpenses(): Promise<{ expenseId: number; transactionId: number }[]> {
+  const pending = await db
+    .select()
+    .from(expenses)
+    .where(and(eq(expenses.status, "reimbursed"), isNull(expenses.reimbursementTxId)));
+  if (pending.length === 0) return [];
+
+  const debits = await db
+    .select({
+      id: transactions.id,
+      amountCents: transactions.amountCents,
+      creditorName: transactions.creditorName,
+      debtorName: transactions.debtorName,
+      memo: transactions.memo,
+    })
+    .from(transactions)
+    .where(lt(transactions.amountCents, 0));
+
+  const used = new Set<number>();
+  const out: { expenseId: number; transactionId: number }[] = [];
+  for (const exp of pending) {
+    if (exp.amountCents == null) continue;
+    const ref = norm(`EXP-${exp.id}`);
+    for (const t of debits) {
+      if (used.has(t.id)) continue;
+      const hay = norm(`${t.creditorName} ${t.debtorName} ${t.memo}`);
+      if (hay.includes(ref) && Math.abs(Number(t.amountCents)) === exp.amountCents) {
+        await db.update(expenses).set({ reimbursementTxId: t.id }).where(eq(expenses.id, exp.id));
+        used.add(t.id);
+        out.push({ expenseId: exp.id, transactionId: t.id });
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 /** Best-effort WhatsApp ping to the manager when invoices auto-settle. */

@@ -221,6 +221,10 @@ export const users = pgTable("users", {
   phone: text("phone").notNull().unique(),
   name: text("name").notNull(),
   role: text("role").notNull(), // 'manager' | 'employee'
+  // Manager-set spending controls for employees:
+  monthlyAllowanceCents: bigint("monthly_allowance_cents", { mode: "number" }), // null = unlimited
+  maxSingleQrCents: bigint("max_single_qr_cents", { mode: "number" }), // cap per QR/request
+  autoApproveUnderCents: bigint("auto_approve_under_cents", { mode: "number" }), // receipts under this auto-approve
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -251,11 +255,17 @@ export const expenses = pgTable("expenses", {
   amountCents: bigint("amount_cents", { mode: "number" }), // null until parsed
   currency: text("currency").notNull().default("HKD"),
   merchant: text("merchant"),
+  brNumber: text("br_number"), // HK Business Registration Number off the receipt (audit)
+  category: text("category"),
   expenseDate: text("expense_date"), // 'YYYY-MM-DD'
   receiptUrl: text("receipt_url"),
   rawParse: jsonb("raw_parse"), // full vision output for debugging
-  status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
+  // 'reimbursement' = employee out of pocket, we owe them; 'company_card' = already ours.
+  paymentType: text("payment_type").notNull().default("reimbursement"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected | reimbursed
   approvedBy: integer("approved_by").references(() => users.id),
+  reimbursedAt: timestamp("reimbursed_at", { withTimezone: true }),
+  reimbursementTxId: integer("reimbursement_tx_id").references(() => transactions.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -343,6 +353,9 @@ export const suppliers = pgTable("suppliers", {
   email: text("email"),
   iban: text("iban"),
   bic: text("bic"),
+  // FPS receiving identity for paying this supplier in HK (replaces SEPA).
+  fpsProxyType: text("fps_proxy_type"), // 'mobile' | 'email' | 'fpsid'
+  fpsProxyId: text("fps_proxy_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

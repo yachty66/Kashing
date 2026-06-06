@@ -7,6 +7,7 @@ import { money } from "@/lib/money";
 import { buildPaymentRequest } from "@/lib/payment-request";
 import { paymentRail } from "@/lib/payment-rail";
 import { arAging, createSimpleInvoice, overdueInvoices } from "@/lib/invoice-server";
+import { runDunning } from "@/lib/dunning";
 import { invoiceQrMediaUrl, qrMediaUrl, type Channel } from "@/lib/agent/channel";
 
 function monthStartDate(): Date {
@@ -437,6 +438,24 @@ const sendInvoiceReminder: Tool = {
   },
 };
 
+const chaseOverdue: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "chase_overdue",
+      description: "Send a WhatsApp payment reminder (with FPS QR) to every customer with an overdue invoice, tone scaled to how overdue. Use when the manager says to chase late payers.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  async run(_args, ctx) {
+    const r = await runDunning(ctx.channel);
+    if (r.sent === 0 && r.skipped.length === 0) return "No overdue invoices to chase.";
+    const parts = [`Sent ${r.sent} reminder(s)${r.reminders.length ? ": " + r.reminders.map((x) => `${x.invoice} (${x.customer ?? "?"}, ${x.daysOverdue}d)`).join(", ") : ""}.`];
+    if (r.skipped.length) parts.push(`Skipped ${r.skipped.length} with no phone on file: ${r.skipped.map((s) => s.invoice).join(", ")}.`);
+    return parts.join(" ");
+  },
+};
+
 // --- Manager tools: reimbursements, allowances, supplier payments -----------
 
 const reimburseExpense: Tool = {
@@ -703,6 +722,7 @@ const MANAGER_TOOLS: Tool[] = [
   arAgingTool,
   listOverdueTool,
   sendInvoiceReminder,
+  chaseOverdue,
 ];
 const EMPLOYEE_TOOLS: Tool[] = [requestQr, listMyExpenses, myAllowance];
 

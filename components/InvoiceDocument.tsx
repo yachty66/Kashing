@@ -1,11 +1,13 @@
 // A polished, print-ready invoice document — modelled on VSQ_Invoice's branded
-// PDF (header + logo, sender line, bill-to / meta two-column, dark-header line
-// table, totals box, due line, sender footer). Shared by the invoice detail
-// page and the public share page. No VAT (HKD-first), integer cents.
+// PDF (header + logo, sender line, bill-to / meta two-column, intro text,
+// dark-header line table, totals box, due line, sender footer). Shared by the
+// invoice detail page, the public share page, and the create wizard's live
+// preview. `light` renders it black-on-white regardless of app theme.
 import { displayStatus, fmtMoney, statusLabel, statusPillClass } from "@/lib/invoices";
 
 export type DocInvoice = {
   number: string;
+  documentType?: string | null; // invoice | credit_note
   customerName: string | null;
   issueDate: string;
   dueDate: string | null;
@@ -13,12 +15,26 @@ export type DocInvoice = {
   status: string;
   subtotalCents: number;
   discountCents: number;
+  discountKind?: string | null;
+  discountPercent?: string | null;
   totalCents: number;
   amountPaidCents: number;
+  orderNumber?: string | null;
+  servicePeriodStart?: string | null;
+  servicePeriodEnd?: string | null;
+  headerText?: string | null;
   notes: string | null;
   footer: string | null;
 };
-export type DocLine = { id: number; description: string; quantity: string; unitPriceCents: number; amountCents: number };
+export type DocLine = {
+  id: number;
+  description: string;
+  details?: string | null;
+  unit?: string | null;
+  quantity: string;
+  unitPriceCents: number;
+  amountCents: number;
+};
 export type DocProfile = {
   name: string;
   addressLines: string | null;
@@ -35,30 +51,49 @@ export type DocCustomer = {
   email: string | null;
 } | null;
 
+// CSS-var overrides that flip the themed tokens to black-on-white paper.
+const LIGHT_VARS = {
+  ["--background" as string]: "#ffffff",
+  ["--foreground" as string]: "#0f172a",
+  ["--muted" as string]: "#64748b",
+  ["--line" as string]: "#e2e8f0",
+  ["--card" as string]: "#ffffff",
+} as React.CSSProperties;
+
 export function InvoiceDocument({
   invoice: inv,
   lines,
   profile,
   customer,
+  light = false,
 }: {
   invoice: DocInvoice;
   lines: DocLine[];
   profile: DocProfile;
   customer: DocCustomer;
+  light?: boolean;
 }) {
   const cur = inv.currency;
   const display = displayStatus(inv);
   const outstanding = Number(inv.totalCents) - Number(inv.amountPaidCents);
+  const title = inv.documentType === "credit_note" ? "CREDIT NOTE" : "INVOICE";
   const senderLine = profile
     ? [profile.name, profile.addressLines?.replace(/\n/g, ", "), profile.email].filter(Boolean).join(" · ")
     : "";
+  const servicePeriod = inv.servicePeriodStart
+    ? inv.servicePeriodEnd && inv.servicePeriodEnd !== inv.servicePeriodStart
+      ? `${inv.servicePeriodStart} – ${inv.servicePeriodEnd}`
+      : inv.servicePeriodStart
+    : null;
+  const discountLabel =
+    inv.discountKind === "percent" && inv.discountPercent ? `Discount (${inv.discountPercent}%)` : "Discount";
 
   return (
-    <div className="card p-8 sm:p-10 space-y-8">
+    <div className="card p-8 sm:p-10 space-y-8" style={light ? LIGHT_VARS : undefined}>
       {/* Header */}
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">INVOICE</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
           {senderLine && <p className="text-xs text-muted mt-2">{senderLine}</p>}
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -76,16 +111,18 @@ export function InvoiceDocument({
           {customer?.email && <div className="text-muted">{customer.email}</div>}
         </div>
         <div className="space-y-1 text-right">
-          <MetaRow label="Invoice no." value={inv.number} />
+          <MetaRow label={inv.documentType === "credit_note" ? "Credit note no." : "Invoice no."} value={inv.number} />
           <MetaRow label="Issue date" value={inv.issueDate} />
           <MetaRow label="Due date" value={inv.dueDate || "—"} />
+          {servicePeriod && <MetaRow label="Service period" value={servicePeriod} />}
+          {inv.orderNumber && <MetaRow label="Order no." value={inv.orderNumber} />}
           <div className="flex justify-end pt-1">
             <span className={statusPillClass(display)}>{statusLabel(display)}</span>
           </div>
         </div>
       </div>
 
-      {inv.notes && <p className="text-sm whitespace-pre-line">{inv.notes}</p>}
+      {inv.headerText && <p className="text-sm whitespace-pre-line">{inv.headerText}</p>}
 
       {/* Line items — strong (inverted) header like VSQ's dark table head */}
       <table className="w-full text-sm border-separate border-spacing-0">
@@ -100,8 +137,13 @@ export function InvoiceDocument({
         <tbody>
           {lines.map((l) => (
             <tr key={l.id}>
-              <td className="px-3 py-2 border-b border-line/60">{l.description || <span className="text-muted">—</span>}</td>
-              <td className="px-3 py-2 border-b border-line/60 text-right tabular-nums">{l.quantity}</td>
+              <td className="px-3 py-2 border-b border-line/60">
+                <div>{l.description || <span className="text-muted">—</span>}</div>
+                {l.details && <div className="text-muted text-xs mt-0.5">{l.details}</div>}
+              </td>
+              <td className="px-3 py-2 border-b border-line/60 text-right tabular-nums">
+                {l.quantity}{l.unit ? ` ${l.unit}` : ""}
+              </td>
               <td className="px-3 py-2 border-b border-line/60 text-right tabular-nums">{fmtMoney(l.unitPriceCents, cur)}</td>
               <td className="px-3 py-2 border-b border-line/60 text-right tabular-nums">{fmtMoney(l.amountCents, cur)}</td>
             </tr>
@@ -114,7 +156,7 @@ export function InvoiceDocument({
         <div className="flex-1" />
         <div className="w-full max-w-xs space-y-1.5 text-sm">
           <Row label="Subtotal" value={fmtMoney(inv.subtotalCents, cur)} muted />
-          {inv.discountCents > 0 && <Row label="Discount" value={`−${fmtMoney(inv.discountCents, cur)}`} muted />}
+          {inv.discountCents > 0 && <Row label={discountLabel} value={`−${fmtMoney(inv.discountCents, cur)}`} muted />}
           <div className="flex justify-between font-semibold text-base border-t border-line pt-2 mt-1">
             <span>Total</span>
             <span className="tabular-nums">{fmtMoney(inv.totalCents, cur)}</span>

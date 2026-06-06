@@ -17,17 +17,30 @@ export default function EditInvoicePage() {
       if (!r.ok) return setNotFound(true);
       const d = await r.json();
       setNumber(d.invoice.number);
+      const v = d.invoice;
       setInitial({
-        customerId: d.invoice.customerId,
-        customerName: d.invoice.customerName,
-        issueDate: d.invoice.issueDate,
-        dueDate: d.invoice.dueDate,
-        currency: d.invoice.currency,
-        discountCents: Number(d.invoice.discountCents),
-        notes: d.invoice.notes,
-        footer: d.invoice.footer,
-        lines: (d.lines ?? []).map((l: { description: string; quantity: string; unitPriceCents: number }) => ({
+        customerId: v.customerId,
+        customerName: v.customerName,
+        documentType: v.documentType ?? "invoice",
+        issueDate: v.issueDate,
+        dueDate: v.dueDate,
+        currency: v.currency,
+        discountKind: v.discountKind ?? "amount",
+        discountPercent: v.discountPercent ?? null,
+        discountCents: Number(v.discountCents),
+        recurrenceKind: v.recurrenceKind ?? "one_off",
+        recurrenceInterval: v.recurrenceInterval ?? null,
+        recurrenceEndAt: v.recurrenceEndAt ?? null,
+        servicePeriodStart: v.servicePeriodStart ?? null,
+        servicePeriodEnd: v.servicePeriodEnd ?? null,
+        orderNumber: v.orderNumber ?? null,
+        headerText: v.headerText ?? null,
+        notes: v.notes,
+        footer: v.footer,
+        lines: (d.lines ?? []).map((l: { description: string; details: string | null; unit: string | null; quantity: string; unitPriceCents: number }) => ({
           description: l.description,
+          details: l.details ?? null,
+          unit: l.unit ?? null,
           quantity: l.quantity,
           unitPriceCents: Number(l.unitPriceCents),
         })),

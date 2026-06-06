@@ -331,10 +331,22 @@ export const invoices = pgTable("invoices", {
   dueDate: text("due_date"), // YYYY-MM-DD
   currency: text("currency").notNull().default("HKD"),
   status: text("status").notNull().default("draft"),
+  documentType: text("document_type").notNull().default("invoice"), // invoice | credit_note
   subtotalCents: bigint("subtotal_cents", { mode: "number" }).notNull().default(0),
-  discountCents: bigint("discount_cents", { mode: "number" }).notNull().default(0),
+  discountKind: text("discount_kind").notNull().default("amount"), // amount | percent
+  discountPercent: text("discount_percent"), // raw percent when discountKind = percent
+  discountCents: bigint("discount_cents", { mode: "number" }).notNull().default(0), // effective discount
   totalCents: bigint("total_cents", { mode: "number" }).notNull().default(0),
   amountPaidCents: bigint("amount_paid_cents", { mode: "number" }).notNull().default(0),
+  // Recurrence (one-off vs a repeating schedule)
+  recurrenceKind: text("recurrence_kind").notNull().default("one_off"), // one_off | recurring
+  recurrenceInterval: text("recurrence_interval"), // monthly | quarterly | yearly
+  recurrenceEndAt: text("recurrence_end_at"),
+  // Service period + reference
+  servicePeriodStart: text("service_period_start"),
+  servicePeriodEnd: text("service_period_end"),
+  orderNumber: text("order_number"),
+  headerText: text("header_text"), // intro shown above the line table
   notes: text("notes"),
   footer: text("footer"),
   publicToken: text("public_token").notNull().unique().$defaultFn(() => crypto.randomUUID()),
@@ -349,6 +361,8 @@ export const invoiceLines = pgTable("invoice_lines", {
   id: serial("id").primaryKey(),
   invoiceId: integer("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
   description: text("description").notNull().default(""),
+  details: text("details"), // optional second line under the description
+  unit: text("unit"), // e.g. h, pcs, kg
   quantity: text("quantity").notNull().default("1"),
   unitPriceCents: bigint("unit_price_cents", { mode: "number" }).notNull().default(0),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull().default(0),

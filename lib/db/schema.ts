@@ -177,3 +177,68 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// WhatsApp CFO agent — multi-user, role-based expense workflow.
+//
+// One shared bot number; the sender's phone number is their identity. A
+// manager (the CFO) issues FPS QR codes to employees, employees pay and send
+// receipts, the agent parses them by vision, and the manager approves. The
+// existing accounts/transactions above are the company's bank books that the
+// manager can also query. Only these new tables are user-scoped — the bank
+// schema stays single-dataset on purpose (see design notes).
+// ---------------------------------------------------------------------------
+
+/** Team members who talk to the CFO agent over WhatsApp. Phone = identity. */
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  // E.164 with no whatsapp: prefix, e.g. "+85291234567".
+  phone: text("phone").notNull().unique(),
+  name: text("name").notNull(),
+  role: text("role").notNull(), // 'manager' | 'employee'
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * An FPS QR code the manager issues so an employee can pay on the company's
+ * behalf. `payload` is the EMVCo FPS string (rendered to a PNG when sent).
+ */
+export const qrIssuances = pgTable("qr_issuances", {
+  id: serial("id").primaryKey(),
+  issuedBy: integer("issued_by").references(() => users.id), // manager (null if employee-requested + auto)
+  employeeId: integer("employee_id").notNull().references(() => users.id), // who can spend it
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  currency: text("currency").notNull().default("HKD"),
+  purpose: text("purpose"),
+  payload: text("payload").notNull(), // FPS QR data string
+  status: text("status").notNull().default("issued"), // 'issued' | 'paid'
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Receipts submitted by employees. Parsed by a vision model into
+ * amount/merchant/date, then approved or rejected by the manager.
+ */
+export const expenses = pgTable("expenses", {
+  id: serial("id").primaryKey(),
+  submittedBy: integer("submitted_by").notNull().references(() => users.id),
+  qrIssuanceId: integer("qr_issuance_id").references(() => qrIssuances.id),
+  amountCents: bigint("amount_cents", { mode: "number" }), // null until parsed
+  currency: text("currency").notNull().default("HKD"),
+  merchant: text("merchant"),
+  expenseDate: text("expense_date"), // 'YYYY-MM-DD'
+  receiptUrl: text("receipt_url"),
+  rawParse: jsonb("raw_parse"), // full vision output for debugging
+  status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
+  approvedBy: integer("approved_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Short rolling chat history per user so the agent can hold a conversation. */
+export const agentMessages = pgTable("agent_messages", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // 'user' | 'assistant'
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

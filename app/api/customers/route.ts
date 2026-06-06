@@ -15,7 +15,10 @@ export async function POST(req: NextRequest) {
     name?: string;
     email?: string;
     addressLines?: string;
+    city?: string;
     brNumber?: string;
+    vatId?: string;
+    taxId?: string;
     phone?: string;
     defaultCurrency?: string;
   } | null;
@@ -28,7 +31,10 @@ export async function POST(req: NextRequest) {
       name: body.name.trim(),
       email: body.email?.trim() || null,
       addressLines: body.addressLines?.trim() || null,
+      city: body.city?.trim() || null,
       brNumber: body.brNumber?.trim() || null,
+      vatId: body.vatId?.trim() || null,
+      taxId: body.taxId?.trim() || null,
       phone: body.phone?.trim() || null,
       defaultCurrency: body.defaultCurrency?.trim() || "HKD",
     })

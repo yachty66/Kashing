@@ -3,10 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const NAV: { href: string; label: string; icon: () => React.ReactNode; soon?: boolean }[] = [
+type NavItem = { href?: string; label: string; icon?: () => React.ReactNode; soon?: boolean; section?: true };
+
+const NAV: NavItem[] = [
   { href: "/subscriptions", label: "Contracts", icon: SubsIcon },
-  { href: "/transactions", label: "Transactions", icon: TxIcon },
+  { href: "/invoices", label: "Invoices", icon: InvoiceIcon },
   { href: "/chat", label: "AI Chat", icon: ChatIcon },
+  { label: "Finance", section: true },
+  { href: "/bookkeeping", label: "Bookkeeping", icon: BookIcon },
+  { href: "/sepa-export", label: "SEPA Export", icon: CardIcon },
+  { label: "Master data", section: true },
+  { href: "/suppliers", label: "Suppliers", icon: TruckIcon },
+  { href: "/customers", label: "Customers", icon: UsersIcon },
+  { label: "More", section: true },
   { href: "/notifications", label: "Notifications", icon: BellIcon, soon: true },
   { href: "/analysis", label: "Analysis", icon: AnalysisIcon, soon: true },
 ];
@@ -20,21 +29,28 @@ export function Sidebar() {
         <Link href="/subscriptions" className="flex items-center gap-2.5 font-semibold tracking-tight text-foreground">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" width={26} height={26} className="rounded-md" />
-          <span className="text-lg">Jacob</span>
+          <span className="text-lg">Kashing</span>
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {NAV.map(({ href, label, icon: Icon, soon }) => {
+        {NAV.map(({ href, label, icon: Icon, soon, section }) => {
+          if (section) {
+            return (
+              <div key={`s-${label}`} className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
+                {label}
+              </div>
+            );
+          }
           const active = pathname === href || pathname?.startsWith(href + "/");
           return (
             <Link
               key={href}
-              href={href}
+              href={href!}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
                 active ? "bg-card text-foreground" : "text-muted hover:text-foreground hover:bg-card/60"
               }`}
             >
-              <Icon />
+              {Icon && <Icon />}
               <span className="flex-1">{label}</span>
               {soon && (
                 <span className="text-[9px] uppercase tracking-wider text-muted/70 border border-line rounded px-1.5 py-0.5">
@@ -73,15 +89,6 @@ function AnalysisIcon() {
   );
 }
 
-function TxIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 7h14M17 7l-3-3M17 7l-3 3" />
-      <path d="M21 17H7M7 17l3-3M7 17l3 3" />
-    </svg>
-  );
-}
-
 function ChatIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -95,6 +102,53 @@ function BellIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+  );
+}
+
+function InvoiceIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2h9l3 3v17l-3-1.5L15 22l-3-1.5L9 22l-3-1.5L3 22V5a3 3 0 0 1 3-3z" />
+      <path d="M8 7h6M8 11h8M8 15h5" />
+    </svg>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  );
+}
+
+function CardIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+    </svg>
+  );
+}
+
+function TruckIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7" />
+      <circle cx="5.5" cy="18.5" r="1.5" />
+      <circle cx="18.5" cy="18.5" r="1.5" />
+    </svg>
+  );
+}
+
+function UsersIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }

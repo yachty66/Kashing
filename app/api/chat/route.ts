@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "http://localhost:3001",
-      "X-Title": "Jacob chat",
+      "X-Title": "Kashing chat",
     },
     // max_tokens cap matters: without it OpenRouter reserves the model's
     // full max (often 64k+) against your credit balance and 402s if your

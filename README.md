@@ -1,40 +1,30 @@
 <p align="center">
-  <img src="public/logo.png" width="120" alt="Jacob" />
+  <img src="public/logo.png" width="120" alt="Kashing" />
 </p>
 
-<h1 align="center">Jacob</h1>
+<h1 align="center">Kashing</h1>
 
 <p align="center">
   Your personal AI CFO. Local-first.
 </p>
 
-<!--
-  Demo video. Source URL is a GitHub user-attachments asset uploaded
-  via issue #1; the issue itself only served as an upload host. To
-  re-record: drag a new mp4 into any issue or PR composer on this
-  repo, copy the new https://github.com/user-attachments/assets/<id>
-  URL, and replace the src below.
--->
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/008f233b-c1fe-4e34-8f47-b5fe9f05612e" controls width="720"></video>
-</p>
-
-Jacob is a dashboard for your money. It connects to European banks via GoCardless (PSD2 open banking), pulls your transactions, finds every contract you're paying for using an LLM (not regex), and lets you ask anything about your finances in natural language. Named after Jakob Fugger, the 16th-century Augsburg banker who financed half of Renaissance Europe.
+Kashing is a dashboard for your money. It connects to European banks via GoCardless (PSD2 open banking), pulls your transactions, finds every contract you're paying for using an LLM (not regex), and lets you ask anything about your finances in natural language.
 
 ## Quickstart
 
 You need three free accounts. None of them charge for the volume one user produces.
 
 1. **Neon** for Postgres: [neon.tech](https://neon.tech). Free tier covers this easily.
-2. **GoCardless Bank Account Data** for PSD2 bank access: [bankaccountdata.gocardless.com](https://bankaccountdata.gocardless.com). Free for up to fifty users per day.
+2. **GoCardless Bank Account Data** for PSD2 bank access (EU/UK): [bankaccountdata.gocardless.com](https://bankaccountdata.gocardless.com). Free for up to fifty users per day.
 3. **OpenRouter** for LLM calls: [openrouter.ai](https://openrouter.ai). Top up five dollars and you have months of headroom.
+
+Optional: **Finverse** for Hong Kong / Asia bank access: [docs.finverse.com](https://docs.finverse.com). Add its credentials to connect HSBC, DBS, Bank of China and other Asian banks alongside the EU/UK ones.
 
 Then:
 
 ```bash
-git clone https://github.com/yachty66/jacob.git
-cd jacob
+git clone https://github.com/yachty66/Kashing.git
+cd Kashing
 npm install
 cp .env.example .env.local   # fill in the values below
 npm run db:push              # create schema in your Neon DB
@@ -52,11 +42,14 @@ PUBLIC_BASE_URL=http://localhost:3001
 GOCARDLESS_SECRET_ID=
 GOCARDLESS_SECRET_KEY=
 
+FINVERSE_CLIENT_ID=          # optional, for Hong Kong / Asia banks
+FINVERSE_CLIENT_SECRET=      # optional
+
 OPENROUTER_API_KEY=
 OPENROUTER_MODEL=anthropic/claude-sonnet-4.6   # optional, dropdown overrides per chat
 ```
 
-`PUBLIC_BASE_URL` is where GoCardless redirects after bank consent. Set it to your public URL if you self-host on a server.
+`PUBLIC_BASE_URL` is where GoCardless and Finverse redirect after bank consent. Set it to your public URL if you self-host on a server. For Finverse, register `PUBLIC_BASE_URL` + `/api/connect/callback` as a redirect_uri in your Finverse dashboard.
 
 ## Stack
 
@@ -64,11 +57,12 @@ OPENROUTER_MODEL=anthropic/claude-sonnet-4.6   # optional, dropdown overrides pe
 - [Tailwind 4](https://tailwindcss.com), strict black-and-white theme
 - [Neon Postgres](https://neon.tech) with [Drizzle ORM](https://orm.drizzle.team)
 - [GoCardless Bank Account Data](https://gocardless.com/bank-account-data/) for PSD2 bank access (every major EU and UK bank)
+- [Finverse](https://www.finverse.com/) for Hong Kong / Asia bank access (HSBC, DBS, Bank of China, BEA, UOB and more), optional
 - [OpenRouter](https://openrouter.ai) for LLM inference, model picked per chat from the live top-weekly list
 
 ## How it works
 
-1. **Bank connect.** You hit Connect a bank, the server creates a GoCardless requisition, you authorize at your bank, GoCardless redirects you back. Bank credentials never touch Jacob.
+1. **Bank connect.** You hit Connect a bank and pick a region. Europe & UK go through GoCardless (the server creates a requisition); Hong Kong & Asia go through Finverse's hosted Link UI. Either way you authorize at your bank, get redirected back, and your bank credentials never touch Kashing. Both providers write into the same normalized `accounts` / `transactions` tables, so everything downstream (detection, categorization, chat) is provider-agnostic.
 2. **Pull.** `POST /api/refresh` fetches up to ninety days of booked and pending transactions per linked account, upserts on `(account_id, gocardless_id)`.
 3. **Categorize.** Keyword rules first (`lib/categories.ts`, covers transfers, salary, fees, the obvious merchants). Whatever rules don't match goes to an LLM batch via `app/api/categorize/route.ts`. Per-merchant user overrides are stored and win forever.
 4. **Detect contracts.** Two passes. A heuristic looks for cadence plus amount stability. An LLM in `lib/detect.ts` catches what statistics miss: rotating transaction IDs, FX-varying foreign subs, Apple-bundle decomposition, PayPal-routed subs, single-occurrence-but-known.
@@ -90,7 +84,7 @@ OPENROUTER_MODEL=anthropic/claude-sonnet-4.6   # optional, dropdown overrides pe
 
 Pull requests welcome. For anything bigger than a typo, open an issue first so we can align on the shape before you spend hours on it.
 
-Jacob is intentionally small. Each feature should fit in one head. If a change feels like it needs an architecture doc to explain, it's probably the wrong change for this repo.
+Kashing is intentionally small. Each feature should fit in one head. If a change feels like it needs an architecture doc to explain, it's probably the wrong change for this repo.
 
 ## License
 

@@ -5,7 +5,7 @@ import { DEFAULT_MODEL, STATIC_TOP_MODELS, type ModelOption } from "@/lib/models
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-const MODEL_STORAGE_KEY = "jacob:chat-model";
+const MODEL_STORAGE_KEY = "kashing:chat-model";
 
 // The system prompt — including all the user's transactions, subscriptions,
 // and account context — is built and injected by the server in /api/chat.

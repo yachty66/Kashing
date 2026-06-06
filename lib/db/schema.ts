@@ -224,6 +224,10 @@ export const businessProfile = pgTable("business_profile", {
   email: text("email"),
   phone: text("phone"),
   paymentInstructions: text("payment_instructions"),
+  // SEPA debtor (the single paying entity) — used to generate SEPA credit
+  // transfers that pay incoming supplier bills.
+  iban: text("iban"),
+  bic: text("bic"),
   defaultCurrency: text("default_currency").notNull().default("HKD"),
   invoicePrefix: text("invoice_prefix").notNull().default("INV"),
   nextSeq: integer("next_seq").notNull().default(1),
@@ -238,11 +242,78 @@ export const customers = pgTable("customers", {
   name: text("name").notNull(),
   email: text("email"),
   addressLines: text("address_lines"),
+  city: text("city"),
   brNumber: text("br_number"),
+  vatId: text("vat_id"), // USt-ID / VAT number (shown as UST-ID)
+  taxId: text("tax_id"),
   phone: text("phone"),
   defaultCurrency: text("default_currency").notNull().default("HKD"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Suppliers / vendors (Lieferanten) — accounts-payable counterparties you pay.
+ * Mirrors VSQ_Invoice's supplier master: name, address, tax id, banking. Can
+ * be auto-seeded from bank-transaction creditor names. IBAN/BIC feed SEPA.
+ */
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  normalizedName: text("normalized_name"),
+  taxId: text("tax_id"), // Steuer-ID / USt-IdNr
+  addressLines: text("address_lines"),
+  postalCode: text("postal_code"),
+  city: text("city"),
+  country: text("country"),
+  email: text("email"),
+  iban: text("iban"),
+  bic: text("bic"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Incoming supplier bills (Eingangsrechnungen / AP). What SEPA Export pays and
+ * Buchhaltung books. EUR-first (SEPA is euro-only). `status` tracks payment;
+ * `sepaFileId` links the bill to the SEPA batch it was paid in;
+ * `bookedAt` marks it exported to bookkeeping.
+ */
+export const bills = pgTable("bills", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
+  supplierName: text("supplier_name"), // snapshot
+  invoiceNumber: text("invoice_number"),
+  invoiceDate: text("invoice_date"), // YYYY-MM-DD
+  dueDate: text("due_date"),
+  description: text("description"),
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull().default(0),
+  currency: text("currency").notNull().default("EUR"),
+  paymentIban: text("payment_iban"),
+  paymentBic: text("payment_bic"),
+  status: text("status").notNull().default("unpaid"), // unpaid | paid
+  sepaFileId: integer("sepa_file_id"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  bookedAt: timestamp("booked_at", { withTimezone: true }), // exported to bookkeeping (Buchhaltung)
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Generated SEPA Credit Transfer files (pain.001.001.03). One file bundles the
+ * selected unpaid bills into a single bank upload; the XML is stored inline for
+ * re-download. `entityName` is the debtor (the single business profile).
+ */
+export const sepaFiles = pgTable("sepa_files", {
+  id: serial("id").primaryKey(),
+  filename: text("filename").notNull(),
+  entityName: text("entity_name").notNull(),
+  debtorIban: text("debtor_iban").notNull(),
+  count: integer("count").notNull().default(0),
+  totalCents: bigint("total_cents", { mode: "number" }).notNull().default(0),
+  status: text("status").notNull().default("generated"),
+  xml: text("xml").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 /**

@@ -18,6 +18,8 @@ const EDITABLE = [
   "email",
   "phone",
   "paymentInstructions",
+  "iban",
+  "bic",
   "defaultCurrency",
   "invoicePrefix",
   "footerNote",

@@ -10,6 +10,8 @@ type Profile = {
   email: string | null;
   phone: string | null;
   paymentInstructions: string | null;
+  iban: string | null;
+  bic: string | null;
   defaultCurrency: string;
   invoicePrefix: string;
   footerNote: string | null;
@@ -98,6 +100,10 @@ export default function InvoiceSettingsPage() {
               placeholder="Bank: HSBC · Account: 123-456789-001 · FPS ID: 1234567"
               className="w-full px-3 py-2 rounded-lg border border-line bg-card text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20" />
           </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="IBAN (SEPA-Absender / debtor)"><Text value={p.iban ?? ""} onChange={(v) => set("iban", v)} placeholder="DE00 0000 0000 0000 0000 00" /></Field>
+            <Field label="BIC"><Text value={p.bic ?? ""} onChange={(v) => set("bic", v)} placeholder="optional" /></Field>
+          </div>
           <Field label="Default footer note">
             <textarea value={p.footerNote ?? ""} onChange={(e) => set("footerNote", e.target.value)} rows={2}
               className="w-full px-3 py-2 rounded-lg border border-line bg-card text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20" />

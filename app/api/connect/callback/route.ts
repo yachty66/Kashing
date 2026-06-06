@@ -7,17 +7,57 @@ import { exchangeCode, getLoginIdentity, listAccounts } from "@/lib/finverse";
 
 export const runtime = "nodejs";
 
+function base(): string {
+  return (process.env.PUBLIC_BASE_URL ?? "http://localhost:3001").replace(/\/$/, "");
+}
+
+// Finverse Link calls the redirect_uri via a cross-origin fetch (not a plain
+// navigation), so the callback must answer CORS preflight and tag its
+// responses, or the browser blocks the call and Finverse retries forever.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Allow-Headers": "*",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS });
+}
+
 /**
- * GoCardless redirects the browser back here after the user finishes the
- * bank consent. We look up the latest requisition, verify it's now linked,
- * upsert the account rows we got, then bounce the user to /subscriptions.
+ * Finishes either as a real browser redirect (top-level navigation, e.g.
+ * GoCardless or Finverse's final navigation) or, when the request is a
+ * cross-origin fetch from Finverse Link (has an Origin header), as a small
+ * CORS-tagged 200 so the fetch resolves and Finverse can move on.
+ */
+function finish(req: NextRequest, target: string): NextResponse {
+  if (req.headers.get("origin")) {
+    return NextResponse.json({ ok: true, redirect: target }, { headers: CORS });
+  }
+  return NextResponse.redirect(target);
+}
+
+/**
+ * GET callback. Both providers redirect the browser here at the end of the
+ * consent flow. Finverse arrives with a `code` + `state` in the query string;
+ * GoCardless arrives without either, so we branch on the presence of `code`.
  */
 export async function GET(req: NextRequest) {
-  const publicBase = (process.env.PUBLIC_BASE_URL ?? "http://localhost:3001").replace(/\/$/, "");
-  const error = req.nextUrl.searchParams.get("error");
+  const publicBase = base();
+  const params = req.nextUrl.searchParams;
+  const error = params.get("error");
   if (error) {
-    return NextResponse.redirect(`${publicBase}/subscriptions?error=${encodeURIComponent(error)}`);
+    return finish(req, `${publicBase}/subscriptions?error=${encodeURIComponent(error)}`);
   }
+
+  // Finverse path: a code in the query string is its signature.
+  const code = params.get("code");
+  const state = params.get("state");
+  if (code && state) {
+    return completeFinverse(req, code, state);
+  }
+
+  // GoCardless path (always a real browser navigation).
   try {
     const latest = await db.select().from(requisitions).orderBy(desc(requisitions.createdAt)).limit(1);
     if (latest.length === 0) {
@@ -59,48 +99,64 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/**
- * Finverse Link redirects here with response_mode=form_post, so the code and
- * state arrive as a POST form body (not query params like GoCardless). We
- * reconcile the PENDING identity by `state`, exchange the code for a login
- * identity token, then upsert that identity's accounts tagged provider=finverse.
- */
+/** POST callback. Fallback for Finverse's form_post response_mode. */
 export async function POST(req: NextRequest) {
-  const publicBase = (process.env.PUBLIC_BASE_URL ?? "http://localhost:3001").replace(/\/$/, "");
-  const redirectUrl = `${publicBase}/api/connect/callback`;
+  const publicBase = base();
   try {
     const form = await req.formData();
-    const code = form.get("code")?.toString();
-    const state = form.get("state")?.toString();
     const error = form.get("error")?.toString();
     if (error) {
-      return NextResponse.redirect(`${publicBase}/subscriptions?error=${encodeURIComponent(error)}`);
+      return finish(req, `${publicBase}/subscriptions?error=${encodeURIComponent(error)}`);
     }
+    const code = form.get("code")?.toString();
+    const state = form.get("state")?.toString();
     if (!code || !state) {
-      return NextResponse.redirect(`${publicBase}/subscriptions?error=finverse_missing_code`);
+      return finish(req, `${publicBase}/subscriptions?error=finverse_missing_code`);
     }
+    return completeFinverse(req, code, state);
+  } catch (e) {
+    return finish(req, `${publicBase}/subscriptions?error=${encodeURIComponent(String(e))}`);
+  }
+}
 
+/**
+ * Shared Finverse completion: reconcile the PENDING identity by `state`,
+ * exchange the code for a login identity token, then upsert that identity's
+ * accounts tagged provider=finverse. Idempotent on repeated calls (the same
+ * code/state can arrive more than once during the Link handshake).
+ */
+async function completeFinverse(req: NextRequest, code: string, state: string): Promise<NextResponse> {
+  const publicBase = base();
+  const redirectUrl = `${publicBase}/api/connect/callback`;
+  const ok = `${publicBase}/subscriptions?connected=1`;
+  try {
     const pending = await db
       .select()
       .from(finverseIdentities)
       .where(eq(finverseIdentities.state, state))
       .limit(1);
     if (pending.length === 0) {
-      return NextResponse.redirect(`${publicBase}/subscriptions?error=finverse_unknown_state`);
+      return finish(req, `${publicBase}/subscriptions?error=finverse_unknown_state`);
     }
     const row = pending[0];
 
-    const { accessToken, expiresAt } = await exchangeCode(code, redirectUrl);
+    // If we already completed this identity (Link may call us several times),
+    // just acknowledge so the widget can finish.
+    if (row.accessToken) return finish(req, ok);
+
+    const { accessToken, expiresAt, loginIdentityId } = await exchangeCode(code, redirectUrl);
     const li = await getLoginIdentity(accessToken);
+    const institutionName = li.institution?.institution_name ?? null;
+    const institutionId = li.institution?.institution_id ?? null;
 
     await db
       .update(finverseIdentities)
       .set({
-        loginIdentityId: li.login_identity_id,
-        institutionName: li.institution?.institution_name ?? null,
+        loginIdentityId: li.login_identity?.login_identity_id ?? loginIdentityId ?? null,
+        institutionName,
         accessToken,
         tokenExpiresAt: expiresAt,
-        status: li.status ?? "CONNECTED",
+        status: "CONNECTED",
       })
       .where(eq(finverseIdentities.id, row.id));
 
@@ -112,19 +168,19 @@ export async function POST(req: NextRequest) {
         .where(eq(accounts.gocardlessId, a.account_id))
         .limit(1);
       if (exists.length > 0) continue;
-      const balanceCents =
-        a.balance?.amount != null ? Math.round(a.balance.amount * 100) : null;
+      const balanceCents = a.balance?.value != null ? Math.round(a.balance.value * 100) : null;
       await db.insert(accounts).values({
         gocardlessId: a.account_id, // provider external account id
         provider: "finverse",
         finverseIdentityId: row.id,
-        institutionId: li.institution?.institution_id ?? null,
-        displayName: a.account_name ?? a.institution_name ?? li.institution?.institution_name ?? null,
+        institutionId,
+        displayName: a.account_name ?? institutionName,
         ...(balanceCents != null ? { balanceCents, balanceUpdatedAt: new Date() } : {}),
       });
     }
-    return NextResponse.redirect(`${publicBase}/subscriptions?connected=1`);
+    return finish(req, ok);
   } catch (e) {
-    return NextResponse.redirect(`${publicBase}/subscriptions?error=${encodeURIComponent(String(e))}`);
+    console.error("finverse callback failed", e);
+    return finish(req, `${publicBase}/subscriptions?error=${encodeURIComponent(String(e))}`);
   }
 }

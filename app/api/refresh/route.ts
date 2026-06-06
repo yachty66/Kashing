@@ -71,14 +71,14 @@ export async function POST() {
         await db.insert(transactions).values({
           accountId: acct.id,
           gocardlessId: gid,
-          bookingDate: t.posted_date ?? t.transaction_date ?? null,
-          valueDate: t.transaction_date ?? null,
+          bookingDate: t.posted_date ?? null,
+          valueDate: t.posted_date ?? null,
           amountCents: fvNormalizeAmountCents(t),
-          currency: t.currency ?? "HKD",
-          creditorName: t.merchant_name ?? t.description ?? null,
+          currency: t.amount?.currency ?? "HKD",
+          creditorName: t.description ?? null,
           debtorName: null,
           memo: t.description ?? null,
-          status: "booked",
+          status: t.is_pending ? "pending" : "booked",
           raw: t as unknown as object,
         });
       }

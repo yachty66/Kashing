@@ -88,10 +88,14 @@ export async function generateLinkToken(params: {
       redirect_uri: params.redirectUrl,
       state: params.state,
       response_type: "code",
-      response_mode: "form_post",
+      // "query" makes Finverse do a top-level browser redirect to redirect_uri
+      // with code+state in the query string. "form_post" instead triggers a
+      // cross-origin request that the browser blocks for a localhost callback.
+      response_mode: "query",
       grant_type: "client_credentials",
-      // Bias the hosted picker toward Hong Kong banks. Drop/extend to widen.
-      countries: ["HK"],
+      // Bias the hosted picker toward Hong Kong banks. ISO 3166-1 alpha-3.
+      // Drop/extend to widen (e.g. SGP, MYS, VNM).
+      countries: ["HKG"],
     }),
   });
   if (!r.ok) throw new Error(`Finverse link token failed: ${r.status} ${await r.text()}`);
@@ -99,28 +103,41 @@ export async function generateLinkToken(params: {
   return { linkUrl: d.link_url };
 }
 
-/** Exchange the authorization code from the callback for a login-identity token. */
+/**
+ * Exchange the authorization code from the callback for a login-identity token.
+ * Per the Finverse API this is a form-urlencoded POST authenticated with the
+ * customer token (Bearer); the client_secret is not sent here.
+ */
 export async function exchangeCode(
   code: string,
   redirectUrl: string,
-): Promise<{ accessToken: string; expiresAt: Date }> {
-  const { id, secret } = creds();
+): Promise<{ accessToken: string; expiresAt: Date; loginIdentityId?: string }> {
+  const customer = await customerAccessToken();
+  const { id } = creds();
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    client_id: id,
+    redirect_uri: redirectUrl,
+  });
   const r = await fetch(`${BASE}/auth/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      grant_type: "authorization_code",
-      code,
-      client_id: id,
-      client_secret: secret,
-      redirect_uri: redirectUrl,
-    }),
+    headers: {
+      Authorization: `Bearer ${customer}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
   });
   if (!r.ok) throw new Error(`Finverse token exchange failed: ${r.status} ${await r.text()}`);
-  const d = (await r.json()) as { access_token: string; expires_in?: number };
+  const d = (await r.json()) as {
+    access_token: string;
+    expires_in?: number;
+    login_identity_id?: string;
+  };
   return {
     accessToken: d.access_token,
     expiresAt: new Date(Date.now() + (d.expires_in ?? 3600) * 1000),
+    loginIdentityId: d.login_identity_id,
   };
 }
 
@@ -135,22 +152,28 @@ async function liCall<T>(path: string, accessToken: string): Promise<T> {
 }
 
 export type FinverseLoginIdentity = {
-  login_identity_id: string;
-  status?: string;
-  institution?: { institution_id?: string; institution_name?: string };
+  institution?: {
+    institution_id?: string;
+    institution_name?: string;
+    countries?: string[];
+  };
+  login_identity?: {
+    login_identity_id?: string;
+    institution_id?: string;
+  };
 };
 
 export async function getLoginIdentity(accessToken: string): Promise<FinverseLoginIdentity> {
   return liCall<FinverseLoginIdentity>("/login_identity", accessToken);
 }
 
+export type FinverseMoney = { value?: number; currency?: string; raw?: string };
+
 export type FinverseAccount = {
   account_id: string;
   account_name?: string;
-  account_number?: { number?: string; masked?: string };
-  currency?: string;
-  balance?: { amount?: number; currency?: string };
-  institution_name?: string;
+  account_currency?: string;
+  balance?: FinverseMoney;
 };
 
 export async function listAccounts(accessToken: string): Promise<FinverseAccount[]> {
@@ -162,24 +185,21 @@ export type FinverseTransaction = {
   transaction_id?: string;
   account_id?: string;
   posted_date?: string; // YYYY-MM-DD
-  transaction_date?: string;
-  amount?: number; // positive magnitude; sign comes from `type`
-  currency?: string;
+  amount?: FinverseMoney; // value is already signed (negative = money out)
   description?: string;
-  type?: string; // 'CREDIT' | 'DEBIT'
-  merchant_name?: string;
+  is_pending?: boolean;
 };
 
 /**
  * Transactions for the whole login identity (all of its accounts), paged.
- * Finverse caps page size; we page until exhausted or `max` is reached.
+ * Finverse default page is 500, max 1000; we page until exhausted or `max`.
  */
 export async function listTransactions(
   accessToken: string,
   max = 2000,
 ): Promise<FinverseTransaction[]> {
   const out: FinverseTransaction[] = [];
-  const limit = 500;
+  const limit = 1000;
   let offset = 0;
   while (out.length < max) {
     const r = await liCall<{ transactions: FinverseTransaction[] }>(
@@ -195,11 +215,9 @@ export async function listTransactions(
 }
 
 /**
- * Normalize a Finverse transaction into the integer-cents, signed convention
- * used by our `transactions` table (negative = money out, matching GoCardless).
+ * Finverse already returns signed amounts (negative = money out), matching the
+ * convention of our `transactions` table. Just convert to integer cents.
  */
 export function normalizeAmountCents(tx: FinverseTransaction): number {
-  const magnitude = Math.round((tx.amount ?? 0) * 100);
-  const isDebit = (tx.type ?? "").toUpperCase() === "DEBIT";
-  return isDebit ? -Math.abs(magnitude) : Math.abs(magnitude);
+  return Math.round((tx.amount?.value ?? 0) * 100);
 }

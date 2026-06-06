@@ -27,7 +27,7 @@ export async function POST() {
       state,
     });
     await db.insert(finverseIdentities).values({ state, status: "PENDING" });
-    return NextResponse.json({ link: linkUrl });
+    return NextResponse.json({ link: linkUrl, state });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 502 });
   }

@@ -80,14 +80,47 @@ export function BankPicker({ onClose }: { onClose: () => void }) {
       const text = await r.text();
       if (!r.ok) {
         setError(`Connect failed (${r.status}): ${text}`);
+        setFvConnecting(false);
         return;
       }
       const data = JSON.parse(text);
-      if (data.link) window.location.href = data.link;
-      else setError("Server returned no bank link.");
+      if (!data.link || !data.state) {
+        setError("Server returned no bank link.");
+        setFvConnecting(false);
+        return;
+      }
+
+      // Finverse Link runs in its own page and hands data back via a
+      // cross-origin call to our callback, not a navigation. So we open it in
+      // a popup, keep this page open, and poll until the connection lands,
+      // then refresh into the connected state.
+      const popup = window.open(data.link, "finverse_link", "width=460,height=780");
+      const started = Date.now();
+      const poll = setInterval(async () => {
+        if (Date.now() - started > 5 * 60_000) {
+          clearInterval(poll);
+          setFvConnecting(false);
+          setError("Timed out waiting for the bank connection. Please try again.");
+          return;
+        }
+        try {
+          const s = await fetch(`/api/connect/finverse/status?state=${data.state}`);
+          const { status } = await s.json();
+          if (status === "CONNECTED") {
+            clearInterval(poll);
+            try {
+              popup?.close();
+            } catch {
+              // cross-origin popup; user can close it
+            }
+            window.location.href = "/subscriptions?connected=1";
+          }
+        } catch {
+          // transient; keep polling
+        }
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
       setFvConnecting(false);
     }
   }

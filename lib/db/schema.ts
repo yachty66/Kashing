@@ -177,3 +177,100 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ── Invoicing (accounts receivable) ─────────────────────────────────────────
+// Kashing reads your bank transactions (AP). These tables add the other side:
+// invoices you issue to customers, tracked draft → sent → paid, and reconciled
+// against the bank transactions already pulled. Hong-Kong-flavoured: HKD-first,
+// no VAT/GST lines (HK has none). All money is integer cents, like everywhere
+// else in this schema.
+
+/**
+ * The issuing business — a single row that renders as the "from" block on
+ * every invoice. `nextSeq` drives sequential invoice numbering;
+ * `paymentInstructions` is free text shown to the customer (bank account / FPS
+ * proxy / however they should pay).
+ */
+export const businessProfile = pgTable("business_profile", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().default("My Business"),
+  brNumber: text("br_number"), // Hong Kong Business Registration number
+  addressLines: text("address_lines"),
+  email: text("email"),
+  phone: text("phone"),
+  paymentInstructions: text("payment_instructions"),
+  defaultCurrency: text("default_currency").notNull().default("HKD"),
+  invoicePrefix: text("invoice_prefix").notNull().default("INV"),
+  nextSeq: integer("next_seq").notNull().default(1),
+  footerNote: text("footer_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Customers you bill (accounts-receivable counterparties). */
+export const customers = pgTable("customers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email"),
+  addressLines: text("address_lines"),
+  brNumber: text("br_number"),
+  phone: text("phone"),
+  defaultCurrency: text("default_currency").notNull().default("HKD"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Sales invoices. `status` is the stored lifecycle
+ * (draft | sent | partly_paid | paid | void); "overdue" is derived at read
+ * time from dueDate, not stored. `amountPaidCents` is the running sum of
+ * invoicePayments. `publicToken` backs an unguessable read-only share link.
+ */
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  number: text("number").notNull().unique(),
+  customerId: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  customerName: text("customer_name"), // snapshot, survives customer deletion
+  issueDate: text("issue_date").notNull(), // YYYY-MM-DD
+  dueDate: text("due_date"), // YYYY-MM-DD
+  currency: text("currency").notNull().default("HKD"),
+  status: text("status").notNull().default("draft"),
+  subtotalCents: bigint("subtotal_cents", { mode: "number" }).notNull().default(0),
+  discountCents: bigint("discount_cents", { mode: "number" }).notNull().default(0),
+  totalCents: bigint("total_cents", { mode: "number" }).notNull().default(0),
+  amountPaidCents: bigint("amount_paid_cents", { mode: "number" }).notNull().default(0),
+  notes: text("notes"),
+  footer: text("footer"),
+  publicToken: text("public_token").notNull().unique().$defaultFn(() => crypto.randomUUID()),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Line items on an invoice. quantity is text to preserve decimals (e.g. 1.5h). */
+export const invoiceLines = pgTable("invoice_lines", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  description: text("description").notNull().default(""),
+  quantity: text("quantity").notNull().default("1"),
+  unitPriceCents: bigint("unit_price_cents", { mode: "number" }).notNull().default(0),
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull().default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+/**
+ * Payments recorded against an invoice. `transactionId` links to a bank
+ * transaction when the payment was reconciled from the bank feed; it's null
+ * for manual ("mark paid") entries. Supports partial payments.
+ */
+export const invoicePayments = pgTable("invoice_payments", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  transactionId: integer("transaction_id").references(() => transactions.id, { onDelete: "set null" }),
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  paidAt: text("paid_at").notNull(), // YYYY-MM-DD
+  method: text("method").notNull().default("manual"), // manual | bank | cash | fps | reconciled | other
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const NAV: { href: string; label: string; icon: () => React.ReactNode; soon?: boolean }[] = [
   { href: "/subscriptions", label: "Contracts", icon: SubsIcon },
   { href: "/transactions", label: "Transactions", icon: TxIcon },
+  { href: "/invoices", label: "Invoices", icon: InvoiceIcon },
   { href: "/chat", label: "AI Chat", icon: ChatIcon },
   { href: "/notifications", label: "Notifications", icon: BellIcon, soon: true },
   { href: "/analysis", label: "Analysis", icon: AnalysisIcon, soon: true },
@@ -95,6 +96,15 @@ function BellIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+  );
+}
+
+function InvoiceIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2h9l3 3v17l-3-1.5L15 22l-3-1.5L9 22l-3-1.5L3 22V5a3 3 0 0 1 3-3z" />
+      <path d="M8 7h6M8 11h8M8 15h5" />
     </svg>
   );
 }

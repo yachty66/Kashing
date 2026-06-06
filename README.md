@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="public/logo.png" width="120" alt="Jacob" />
+  <img src="public/logo.png" width="120" alt="Kashing" />
 </p>
 
-<h1 align="center">Jacob</h1>
+<h1 align="center">Kashing</h1>
 
 <p align="center">
   Your personal AI CFO. Local-first.
@@ -20,7 +20,7 @@
   <video src="https://github.com/user-attachments/assets/008f233b-c1fe-4e34-8f47-b5fe9f05612e" controls width="720"></video>
 </p>
 
-Jacob is a dashboard for your money. It connects to European banks via GoCardless (PSD2 open banking), pulls your transactions, finds every contract you're paying for using an LLM (not regex), and lets you ask anything about your finances in natural language. Named after Jakob Fugger, the 16th-century Augsburg banker who financed half of Renaissance Europe.
+Kashing is a dashboard for your money. It connects to European banks via GoCardless (PSD2 open banking), pulls your transactions, finds every contract you're paying for using an LLM (not regex), and lets you ask anything about your finances in natural language.
 
 ## Quickstart
 
@@ -33,8 +33,8 @@ You need three free accounts. None of them charge for the volume one user produc
 Then:
 
 ```bash
-git clone https://github.com/yachty66/jacob.git
-cd jacob
+git clone https://github.com/yachty66/Kashing.git
+cd Kashing
 npm install
 cp .env.example .env.local   # fill in the values below
 npm run db:push              # create schema in your Neon DB
@@ -68,7 +68,7 @@ OPENROUTER_MODEL=anthropic/claude-sonnet-4.6   # optional, dropdown overrides pe
 
 ## How it works
 
-1. **Bank connect.** You hit Connect a bank, the server creates a GoCardless requisition, you authorize at your bank, GoCardless redirects you back. Bank credentials never touch Jacob.
+1. **Bank connect.** You hit Connect a bank, the server creates a GoCardless requisition, you authorize at your bank, GoCardless redirects you back. Bank credentials never touch Kashing.
 2. **Pull.** `POST /api/refresh` fetches up to ninety days of booked and pending transactions per linked account, upserts on `(account_id, gocardless_id)`.
 3. **Categorize.** Keyword rules first (`lib/categories.ts`, covers transfers, salary, fees, the obvious merchants). Whatever rules don't match goes to an LLM batch via `app/api/categorize/route.ts`. Per-merchant user overrides are stored and win forever.
 4. **Detect contracts.** Two passes. A heuristic looks for cadence plus amount stability. An LLM in `lib/detect.ts` catches what statistics miss: rotating transaction IDs, FX-varying foreign subs, Apple-bundle decomposition, PayPal-routed subs, single-occurrence-but-known.
@@ -90,7 +90,7 @@ OPENROUTER_MODEL=anthropic/claude-sonnet-4.6   # optional, dropdown overrides pe
 
 Pull requests welcome. For anything bigger than a typo, open an issue first so we can align on the shape before you spend hours on it.
 
-Jacob is intentionally small. Each feature should fit in one head. If a change feels like it needs an architecture doc to explain, it's probably the wrong change for this repo.
+Kashing is intentionally small. Each feature should fit in one head. If a change feels like it needs an architecture doc to explain, it's probably the wrong change for this repo.
 
 ## License
 

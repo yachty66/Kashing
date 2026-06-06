@@ -27,19 +27,30 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const [c] = await db.select().from(customers).where(eq(customers.id, inv.customerId)).limit(1);
     phone = c?.phone ?? null;
   }
-  if (!phone) {
-    return NextResponse.json({ error: "No WhatsApp number on file for this customer — add a phone on the customer record." }, { status: 400 });
-  }
 
   const outstanding = Number(inv.totalCents) - Number(inv.amountPaidCents);
   const amount = outstanding > 0 ? outstanding : Number(inv.totalCents);
   const pr = await buildPaymentRequest({ amount: amount / 100, reference: inv.number });
-  const msg = `Invoice ${inv.number} — ${money(amount, inv.currency)}${inv.dueDate ? ` due ${inv.dueDate}` : ""}. Pay instantly:\n${pr.copyText}`;
+  const due = inv.dueDate ? ` due ${inv.dueDate}` : "";
+  const channel = twilioChannel();
 
   try {
-    await twilioChannel().send(phone, msg, [invoiceQrMediaUrl(inv.id)]);
+    if (phone) {
+      // Send straight to the customer.
+      const msg = `Invoice ${inv.number} — ${money(amount, inv.currency)}${due}. Pay instantly:\n${pr.copyText}`;
+      await channel.send(phone, msg, [invoiceQrMediaUrl(inv.id)]);
+      return NextResponse.json({ ok: true, to: inv.customerName ?? phone });
+    }
+    // No customer phone on file → send to the manager to forward.
+    const { getManager } = await import("@/lib/users");
+    const mgr = await getManager();
+    if (!mgr) {
+      return NextResponse.json({ error: "No customer phone and no manager to forward to. Add a phone on the customer." }, { status: 400 });
+    }
+    const fwd = `Forward to ${inv.customerName ?? "the customer"} — invoice ${inv.number} for ${money(amount, inv.currency)}${due}:\n${pr.copyText}`;
+    await channel.send(mgr.phone, fwd, [invoiceQrMediaUrl(inv.id)]);
+    return NextResponse.json({ ok: true, to: `you (no phone for ${inv.customerName ?? "customer"} — forward it)` });
   } catch (e) {
     return NextResponse.json({ error: `Send failed: ${e}` }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, to: inv.customerName ?? phone });
 }

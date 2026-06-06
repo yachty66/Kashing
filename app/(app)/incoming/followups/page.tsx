@@ -45,6 +45,17 @@ export default function IncomingFollowups() {
   const followedUpValue = overdue.reduce((s, i) => s + outstanding(i), 0);
   const upcomingValue = upcoming.reduce((s, i) => s + outstanding(i), 0);
 
+  // "Aging": how much is owed, grouped by how late it is.
+  const age = { notDue: 0, d1_30: 0, d31_60: 0, d60: 0 };
+  for (const i of open) {
+    const d = daysOverdue(i.dueDate);
+    const amt = outstanding(i);
+    if (d <= 0) age.notDue += amt;
+    else if (d <= 30) age.d1_30 += amt;
+    else if (d <= 60) age.d31_60 += amt;
+    else age.d60 += amt;
+  }
+
   async function chase(id: number) {
     setBusy(id);
     try {
@@ -75,11 +86,27 @@ export default function IncomingFollowups() {
           <div className="text-xl font-semibold tabular-nums mt-1">{money(upcomingValue, "HKD")}</div>
           <input type="date" value={upTo} onChange={(e) => setUpTo(e.target.value)} className="mt-2 w-full px-2 py-1 rounded border border-line bg-card text-xs" />
         </div>
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-muted mb-1">Owed, by how late</div>
+          <Bucket label="Not due yet" value={age.notDue} />
+          <Bucket label="1–30 days late" value={age.d1_30} />
+          <Bucket label="31–60 days late" value={age.d31_60} />
+          <Bucket label="60+ days late" value={age.d60} accent />
+        </div>
       </div>
 
       <Section title="In scope — chase now" rows={overdue} outstanding={outstanding} busy={busy} msg={msg} chase={chase} showOverdue />
       <div className="h-6" />
       <Section title="Upcoming — due soon" rows={upcoming} outstanding={outstanding} busy={busy} msg={msg} chase={chase} />
+    </div>
+  );
+}
+
+function Bucket({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div className="flex items-center justify-between text-sm py-0.5">
+      <span className="text-muted">{label}</span>
+      <span className={`tabular-nums ${accent && value > 0 ? "text-red-500 font-medium" : ""}`}>{money(value, "HKD")}</span>
     </div>
   );
 }

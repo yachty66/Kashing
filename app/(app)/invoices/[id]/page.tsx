@@ -33,6 +33,7 @@ export default function InvoiceDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [sendMsg, setSendMsg] = useState<string | null>(null);
 
   // Record-payment form
   const [showPay, setShowPay] = useState(false);
@@ -113,6 +114,39 @@ export default function InvoiceDetailPage() {
     });
   }
 
+  async function sendWhatsApp() {
+    setSendMsg("Sending…");
+    try {
+      const r = await fetch(`/api/invoices/${id}/send`, { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) {
+        setSendMsg(`Sent to ${j.to}`);
+        setTimeout(() => setSendMsg(null), 2500);
+      } else {
+        setSendMsg(null);
+        alert(j.error ?? "Send failed");
+      }
+    } catch (e) {
+      setSendMsg(null);
+      alert(`Send failed: ${e}`);
+    }
+  }
+
+  function emailInvoice() {
+    if (!inv) return;
+    const link = `${window.location.origin}/invoice/${inv.publicToken}`;
+    const amount = Number(inv.totalCents) - Number(inv.amountPaidCents);
+    const subject = encodeURIComponent(`Invoice ${inv.number}${profile?.name ? ` from ${profile.name}` : ""}`);
+    const body = encodeURIComponent(
+      `Hi${inv.customerName ? ` ${inv.customerName}` : ""},\n\n` +
+        `Please find invoice ${inv.number} for ${fmtMoney(amount > 0 ? amount : Number(inv.totalCents), inv.currency)}` +
+        `${inv.dueDate ? ` (due ${inv.dueDate})` : ""}.\n\n` +
+        `View and pay online — the FPS QR is on the invoice:\n${link}\n\n` +
+        `Thank you.${profile?.name ? `\n${profile.name}` : ""}`,
+    );
+    window.location.href = `mailto:${customer?.email ?? ""}?subject=${subject}&body=${body}`;
+  }
+
   if (notFound) return <div className="p-8 text-muted text-sm">Invoice not found.</div>;
   if (!inv) return <div className="p-8 text-muted text-sm">Loading…</div>;
 
@@ -133,6 +167,12 @@ export default function InvoiceDetailPage() {
               <Link href={`/invoices/${id}/edit`} className="btn btn-ghost text-sm">Edit</Link>
             )}
             <button onClick={copyLink} className="btn btn-ghost text-sm">{copied ? "Copied!" : "Copy link"}</button>
+            {inv.status !== "void" && (
+              <>
+                <button disabled={busy || sendMsg === "Sending…"} onClick={sendWhatsApp} className="btn btn-ghost text-sm disabled:opacity-60">{sendMsg ?? "Send WhatsApp"}</button>
+                <button onClick={emailInvoice} className="btn btn-ghost text-sm">Email</button>
+              </>
+            )}
             <button onClick={() => window.print()} className="btn btn-ghost text-sm">Print / PDF</button>
             {inv.status !== "void" ? (
               <button disabled={busy} onClick={() => setStatus("void")} className="btn btn-ghost text-sm">Void</button>

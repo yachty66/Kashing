@@ -1,10 +1,12 @@
-import { desc, eq, gte } from "drizzle-orm";
+import { desc, eq, gte, ilike } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { expenses, qrIssuances, users } from "@/lib/db/schema";
+import { customers, expenses, invoices, qrIssuances, users } from "@/lib/db/schema";
 import { buildFpsPayload } from "@/lib/fps-qr";
 import { findEmployeeByName, getManager, type Role, type User } from "@/lib/users";
 import { money } from "@/lib/money";
-import { qrMediaUrl, type Channel } from "@/lib/agent/channel";
+import { buildPaymentRequest } from "@/lib/payment-request";
+import { arAging, createSimpleInvoice, overdueInvoices } from "@/lib/invoice-server";
+import { invoiceQrMediaUrl, qrMediaUrl, type Channel } from "@/lib/agent/channel";
 
 export type ToolContext = { user: User; channel: Channel };
 
@@ -282,6 +284,138 @@ const editExpense: Tool = {
   },
 };
 
+// --- Manager tools: invoicing / receivables ---------------------------------
+
+const createInvoice: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "create_invoice",
+      description: "Create a B2B invoice for a customer and get back an FPS payment QR to forward to them. The customer pays by scanning, tapping the PayMe link, or FPS transfer; it auto-reconciles when the money lands.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer: { type: "string", description: "Customer name." },
+          amount: { type: "number", description: "Amount in HKD." },
+          description: { type: "string", description: "What the invoice is for." },
+          terms_days: { type: "number", description: "Credit terms in days (default: the customer's terms or 30)." },
+        },
+        required: ["customer", "amount"],
+      },
+    },
+  },
+  async run(args, ctx) {
+    const amount = Number(args.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return "Need a positive amount in HKD.";
+    const name = String(args.customer ?? "").trim();
+    if (!name) return "Need a customer name.";
+    const [existing] = await db.select().from(customers).where(ilike(customers.name, `%${name}%`)).limit(1);
+
+    const inv = await createSimpleInvoice({
+      customerName: existing?.name ?? name,
+      customerId: existing?.id ?? null,
+      amountCents: Math.round(amount * 100),
+      description: typeof args.description === "string" ? args.description : "Services",
+      termsDays: typeof args.terms_days === "number" ? args.terms_days : undefined,
+    });
+
+    const pr = await buildPaymentRequest({ amount, reference: inv.number });
+    await ctx.channel.send(
+      ctx.user.phone,
+      `Invoice ${inv.number} — HK$${amount.toFixed(2)} to ${inv.customerName}, due ${inv.dueDate}.\nForward this to your customer:\n${pr.copyText}`,
+      [invoiceQrMediaUrl(inv.id)],
+    );
+    return `Created ${inv.number} for HK$${amount.toFixed(2)} to ${inv.customerName} (due ${inv.dueDate}). Sent you the FPS QR to forward.`;
+  },
+};
+
+const arAgingTool: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "ar_aging",
+      description: "Accounts-receivable aging: how much customers owe, bucketed by how overdue it is.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  async run() {
+    const b = await arAging();
+    return JSON.stringify({
+      total_outstanding: money(b.total, "HKD"),
+      current: money(b.current, "HKD"),
+      overdue_1_30: money(b.d1_30, "HKD"),
+      overdue_31_60: money(b.d31_60, "HKD"),
+      overdue_60_plus: money(b.d60plus, "HKD"),
+    });
+  },
+};
+
+const listOverdueTool: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "list_overdue",
+      description: "List invoices that are past their due date and still owed, most overdue first. Use to find which clients to chase.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  async run() {
+    const rows = await overdueInvoices();
+    if (rows.length === 0) return "No overdue invoices.";
+    return JSON.stringify(
+      rows.map((r) => ({
+        invoice: r.inv.number,
+        customer: r.inv.customerName,
+        outstanding: money(r.outstandingCents, r.inv.currency),
+        days_overdue: r.daysOverdue,
+        due_date: r.inv.dueDate,
+      })),
+    );
+  },
+};
+
+const sendInvoiceReminder: Tool = {
+  schema: {
+    type: "function",
+    function: {
+      name: "send_invoice_reminder",
+      description: "Send a polite WhatsApp payment reminder for an invoice, with the FPS QR/PayMe attached. If the customer's phone is on file it goes to them; otherwise it comes back to you to forward.",
+      parameters: {
+        type: "object",
+        properties: {
+          invoice: { type: "string", description: "Invoice number (e.g. INV-2026-0001)." },
+          to_phone: { type: "string", description: "Optional client phone in E.164 to send to directly." },
+        },
+        required: ["invoice"],
+      },
+    },
+  },
+  async run(args, ctx) {
+    const ref = String(args.invoice ?? "").trim();
+    if (!ref) return "Need an invoice number.";
+    const [inv] = await db.select().from(invoices).where(ilike(invoices.number, `%${ref}%`)).limit(1);
+    if (!inv) return `No invoice matching "${ref}".`;
+    const outstanding = Number(inv.totalCents) - Number(inv.amountPaidCents);
+    if (outstanding <= 0) return `${inv.number} is already settled.`;
+
+    const pr = await buildPaymentRequest({ amount: outstanding / 100, reference: inv.number });
+    const msg = `Friendly reminder: invoice ${inv.number} for ${money(outstanding, inv.currency)} is due${inv.dueDate ? ` (${inv.dueDate})` : ""}. You can pay instantly:\n${pr.copyText}`;
+
+    let toPhone = typeof args.to_phone === "string" && args.to_phone.trim() ? args.to_phone.trim() : null;
+    if (!toPhone && inv.customerId) {
+      const [c] = await db.select().from(customers).where(eq(customers.id, inv.customerId)).limit(1);
+      if (c?.phone) toPhone = c.phone;
+    }
+
+    if (toPhone) {
+      await ctx.channel.send(toPhone, msg, [invoiceQrMediaUrl(inv.id)]);
+      return `Reminder for ${inv.number} sent to ${inv.customerName ?? toPhone}.`;
+    }
+    await ctx.channel.send(ctx.user.phone, `No phone on file for ${inv.customerName ?? "this customer"} — forward this:\n${msg}`, [invoiceQrMediaUrl(inv.id)]);
+    return `No client phone on file for ${inv.number}; sent you the reminder + QR to forward.`;
+  },
+};
+
 // --- Employee tools ---------------------------------------------------------
 
 const requestQr: Tool = {
@@ -365,7 +499,18 @@ const listMyExpenses: Tool = {
   },
 };
 
-const MANAGER_TOOLS: Tool[] = [listExpenses, expenseSummary, approveExpense, rejectExpense, editExpense, issueQr];
+const MANAGER_TOOLS: Tool[] = [
+  listExpenses,
+  expenseSummary,
+  approveExpense,
+  rejectExpense,
+  editExpense,
+  issueQr,
+  createInvoice,
+  arAgingTool,
+  listOverdueTool,
+  sendInvoiceReminder,
+];
 const EMPLOYEE_TOOLS: Tool[] = [requestQr, listMyExpenses];
 
 export function toolsForRole(role: Role): { schemas: OpenAiTool[]; byName: Map<string, Tool> } {

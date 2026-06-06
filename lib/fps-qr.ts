@@ -19,14 +19,20 @@ function fpsClean(s: string): string {
   return s.replace(/[^A-Za-z0-9.@_+-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 25);
 }
 
-/** Build the FPS EMVCo payload string for a fixed-amount (dynamic) QR. */
+/** Build the FPS EMVCo payload string for a fixed-amount QR. */
 export function buildFpsPayload(opts: {
   amount: number; // HKD, major units
   billNumber?: string;
   reference?: string;
+  // Receiving identity. Defaults to the demo merchant FPS ID if unset.
+  proxyType?: "mobile" | "email" | "fpsid";
+  proxyId?: string;
 }): string {
   const fps = new FPS();
-  fps.setFPSId(MERCHANT_FPS_ID);
+  const id = opts.proxyId || MERCHANT_FPS_ID;
+  if (opts.proxyType === "mobile") fps.setMobile(id);
+  else if (opts.proxyType === "email") fps.setEmail(id);
+  else fps.setFPSId(id);
   fps.setHKD();
   fps.setAmount(opts.amount);
   const bill = opts.billNumber && fpsClean(opts.billNumber);

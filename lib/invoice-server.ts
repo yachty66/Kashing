@@ -1,7 +1,111 @@
 // Server-side invoice helpers (touch the DB). Imported only by API routes.
-import { eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { businessProfile, invoiceLines, invoicePayments, invoices } from "@/lib/db/schema";
+import { businessProfile, customers, invoiceLines, invoicePayments, invoices } from "@/lib/db/schema";
+
+/** Today and date arithmetic as YYYY-MM-DD strings. */
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function addDaysISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Create a one-line invoice in a single call (used by the WhatsApp agent).
+ * Issues it as "sent" with a due date derived from the customer's credit terms
+ * (or the passed default), and stamps a unique invoice number.
+ */
+export async function createSimpleInvoice(opts: {
+  customerName: string;
+  customerId?: number | null;
+  amountCents: number;
+  description: string;
+  termsDays?: number;
+}) {
+  const profile = await getOrCreateBusinessProfile();
+  let customerName = opts.customerName.trim();
+  let customerId: number | null = opts.customerId ?? null;
+  let termsDays = opts.termsDays ?? 30;
+  if (customerId != null) {
+    const [c] = await db.select().from(customers).where(eq(customers.id, customerId));
+    if (c) {
+      customerName = customerName || c.name;
+      termsDays = opts.termsDays ?? c.creditTermsDays;
+    } else {
+      customerId = null;
+    }
+  }
+  const number = await allocateInvoiceNumber();
+  const amountCents = Math.max(0, Math.round(opts.amountCents));
+  const [inv] = await db
+    .insert(invoices)
+    .values({
+      number,
+      customerId,
+      customerName,
+      issueDate: todayISO(),
+      dueDate: addDaysISO(termsDays),
+      currency: profile.defaultCurrency,
+      status: "sent",
+      subtotalCents: amountCents,
+      discountCents: 0,
+      totalCents: amountCents,
+      sentAt: new Date(),
+    })
+    .returning();
+  await db.insert(invoiceLines).values({
+    invoiceId: inv.id,
+    description: opts.description.trim() || "Services",
+    quantity: "1",
+    unitPriceCents: amountCents,
+    amountCents,
+    sortOrder: 0,
+  });
+  return inv;
+}
+
+const OPEN_STATUSES = ["sent", "partly_paid"] as const;
+
+/** Open invoices with their outstanding balance and days overdue. */
+export async function openReceivables() {
+  const rows = await db
+    .select()
+    .from(invoices)
+    .where(inArray(invoices.status, OPEN_STATUSES as unknown as string[]));
+  const today = todayISO();
+  return rows
+    .map((inv) => {
+      const outstandingCents = Number(inv.totalCents) - Number(inv.amountPaidCents);
+      const daysOverdue = inv.dueDate && inv.dueDate < today
+        ? Math.floor((Date.parse(today) - Date.parse(inv.dueDate)) / 86_400_000)
+        : 0;
+      return { inv, outstandingCents, daysOverdue };
+    })
+    .filter((r) => r.outstandingCents > 0);
+}
+
+/** AR aging buckets (outstanding cents) across all open invoices. */
+export async function arAging() {
+  const open = await openReceivables();
+  const b = { current: 0, d1_30: 0, d31_60: 0, d60plus: 0, total: 0 };
+  for (const { outstandingCents, daysOverdue } of open) {
+    b.total += outstandingCents;
+    if (daysOverdue <= 0) b.current += outstandingCents;
+    else if (daysOverdue <= 30) b.d1_30 += outstandingCents;
+    else if (daysOverdue <= 60) b.d31_60 += outstandingCents;
+    else b.d60plus += outstandingCents;
+  }
+  return b;
+}
+
+/** Open invoices already past their due date, most overdue first. */
+export async function overdueInvoices() {
+  const open = await openReceivables();
+  return open.filter((r) => r.daysOverdue > 0).sort((a, b) => b.daysOverdue - a.daysOverdue);
+}
 
 /** Return the single business-profile row, creating a default one if missing. */
 export async function getOrCreateBusinessProfile() {

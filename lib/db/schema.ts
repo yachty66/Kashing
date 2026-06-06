@@ -293,6 +293,12 @@ export const businessProfile = pgTable("business_profile", {
   // transfers that pay incoming supplier bills.
   iban: text("iban"),
   bic: text("bic"),
+  // FPS receiving identity (HK). The proxy we put into payment QR codes so
+  // money lands in our account, plus an optional PayMe-for-Business link for
+  // one-tap same-phone payment.
+  fpsProxyType: text("fps_proxy_type"), // 'mobile' | 'email' | 'fpsid'
+  fpsProxyId: text("fps_proxy_id"),
+  payMeLink: text("payme_link"),
   defaultCurrency: text("default_currency").notNull().default("HKD"),
   invoicePrefix: text("invoice_prefix").notNull().default("INV"),
   nextSeq: integer("next_seq").notNull().default(1),
@@ -313,6 +319,9 @@ export const customers = pgTable("customers", {
   taxId: text("tax_id"),
   phone: text("phone"),
   defaultCurrency: text("default_currency").notNull().default("HKD"),
+  // Credit profile for B2B terms: due date = issue date + creditTermsDays.
+  creditTermsDays: integer("credit_terms_days").notNull().default(30),
+  creditLimitCents: bigint("credit_limit_cents", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

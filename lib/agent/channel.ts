@@ -8,8 +8,16 @@ export interface Channel {
   send(toPhone: string, text: string, mediaUrls?: string[]): Promise<void>;
 }
 
+function baseUrl(): string {
+  return (process.env.PUBLIC_BASE_URL ?? "http://localhost:3001").replace(/\/$/, "");
+}
+
 /** Public URL where the QR PNG for an issuance is served (Twilio fetches it). */
 export function qrMediaUrl(issuanceId: number): string {
-  const base = process.env.PUBLIC_BASE_URL ?? "http://localhost:3001";
-  return `${base.replace(/\/$/, "")}/api/qr/${issuanceId}`;
+  return `${baseUrl()}/api/qr/${issuanceId}`;
+}
+
+/** Public URL for an invoice's FPS QR PNG. */
+export function invoiceQrMediaUrl(invoiceId: number): string {
+  return `${baseUrl()}/api/invoices/${invoiceId}/qr`;
 }

@@ -9,6 +9,7 @@ import {
   type FinverseTransaction,
 } from "@/lib/finverse";
 import { detectHeuristic, detectLLM, writeBrief, type Tx } from "@/lib/detect";
+import { autoReconcileTransactions } from "@/lib/reconcile";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // generous; LLM passes can take a while
@@ -147,6 +148,15 @@ export async function POST() {
       .where(eq(accounts.id, acct.id));
   }
 
+  // Auto-reconcile incoming credits against open invoices (tier-1: invoice
+  // number in memo + exact outstanding amount). Best-effort.
+  let reconciledCount = 0;
+  try {
+    reconciledCount = (await autoReconcileTransactions()).length;
+  } catch (e) {
+    console.warn("auto-reconcile failed", e);
+  }
+
   // Load every transaction for analysis
   const allTxRows = await db.select().from(transactions);
   if (allTxRows.length === 0) {
@@ -205,6 +215,7 @@ export async function POST() {
     analysis: llm,
     brief,
     transactions: allTxRows.length,
+    reconciled: reconciledCount,
     account_errors: errors,
     categorized,
   });

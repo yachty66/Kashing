@@ -236,6 +236,18 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
       )}
+
+      {/* FPS payment QR — printed onto the invoice; baked with amount + number */}
+      {inv && inv.status !== "void" && Number(inv.totalCents) - Number(inv.amountPaidCents) > 0 && (
+        <div className="card p-5 mt-6">
+          <h2 className="text-sm font-semibold mb-1">Pay by FPS</h2>
+          <p className="text-xs text-muted mb-3">
+            Scan with any HK bank app, PayMe, or AlipayHK — or save it and use &ldquo;scan from album&rdquo; to pay from this phone. The amount and invoice number are baked in, so it reconciles automatically.
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/api/invoices/${id}/qr`} alt={`FPS QR for ${inv.number}`} width={200} height={200} className="border border-line" />
+        </div>
+      )}
     </div>
   );
 }

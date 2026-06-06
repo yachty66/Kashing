@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (id === null) return NextResponse.json({ error: "invalid id" }, { status: 400 });
   const b = (await req.json().catch(() => null)) as Record<string, string> | null;
   if (!b) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-  if ("name" in b && !b.name?.trim()) return NextResponse.json({ error: "Name darf nicht leer sein" }, { status: 400 });
+  if ("name" in b && !b.name?.trim()) return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (b.name !== undefined) { patch.name = b.name.trim(); patch.normalizedName = b.name.trim().toLowerCase(); }

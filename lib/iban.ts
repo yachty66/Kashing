@@ -15,14 +15,14 @@ export function normalizeBic(raw: unknown): string | null {
 
 /** Validate IBAN format + MOD-97 checksum (ISO 13616). null = valid. */
 export function validateIban(raw: string | null | undefined): string | null {
-  if (!raw) return "IBAN fehlt";
+  if (!raw) return "IBAN missing";
   const iban = raw.replace(/\s/g, "").toUpperCase();
 
   if (iban.length < 15 || iban.length > 34) {
-    return `IBAN hat ${iban.length} Zeichen (muss 15-34 sein)`;
+    return `IBAN has ${iban.length} characters (must be 15-34)`;
   }
   if (!/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(iban)) {
-    return "IBAN Format ungültig (muss mit 2 Buchstaben + 2 Ziffern beginnen)";
+    return "Invalid IBAN format (must start with 2 letters + 2 digits)";
   }
 
   const rearranged = iban.slice(4) + iban.slice(0, 4);
@@ -38,7 +38,7 @@ export function validateIban(raw: string | null | undefined): string | null {
   for (let i = 0; i < numericStr.length; i++) {
     remainder = (remainder * 10 + parseInt(numericStr[i], 10)) % 97;
   }
-  if (remainder !== 1) return "IBAN Prüfziffer ungültig";
+  if (remainder !== 1) return "Invalid IBAN checksum";
   return null;
 }
 
@@ -47,10 +47,10 @@ export function validateBic(raw: string | null | undefined): string | null {
   if (!raw) return null; // optional in SEPA since Feb 2016
   const bic = raw.replace(/\s/g, "").toUpperCase();
   if (bic.length !== 8 && bic.length !== 11) {
-    return `BIC hat ${bic.length} Zeichen (muss 8 oder 11 sein)`;
+    return `BIC has ${bic.length} characters (must be 8 or 11)`;
   }
   if (!/^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic)) {
-    return "BIC Format ungültig";
+    return "Invalid BIC format";
   }
   return null;
 }

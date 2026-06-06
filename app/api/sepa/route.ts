@@ -28,7 +28,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as { billIds?: number[] } | null;
   const ids = (body?.billIds ?? []).filter((n) => Number.isInteger(n));
-  if (ids.length === 0) return NextResponse.json({ error: "Keine Rechnungen ausgewählt" }, { status: 400 });
+  if (ids.length === 0) return NextResponse.json({ error: "No bills selected" }, { status: 400 });
 
   const profile = await getOrCreateBusinessProfile();
   const entity = { name: profile.name, iban: profile.iban, bic: profile.bic };
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const rows = (await db.select().from(bills).where(inArray(bills.id, ids))).filter(
     (b) => b.status !== "paid",
   );
-  if (rows.length === 0) return NextResponse.json({ error: "Keine offenen Rechnungen gefunden" }, { status: 400 });
+  if (rows.length === 0) return NextResponse.json({ error: "No open bills found" }, { status: 400 });
 
   // Pre-flight validation (debtor + every creditor).
   const errors = validateSepaBills(
@@ -51,11 +51,11 @@ export async function POST(req: NextRequest) {
     })),
     entity,
   );
-  if (errors.length) return NextResponse.json({ error: "Validierung fehlgeschlagen", validation: errors }, { status: 422 });
+  if (errors.length) return NextResponse.json({ error: "Validation failed", validation: errors }, { status: 422 });
 
   const sepaBills: SepaBill[] = rows.map((b) => ({
     id: b.id,
-    supplier: b.supplierName ?? "Unbekannt",
+    supplier: b.supplierName ?? "Unknown",
     amountCents: Number(b.amountCents),
     payment_iban: b.paymentIban,
     payment_bic: b.paymentBic,

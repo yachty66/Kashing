@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, isNull, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { merchantCategories, transactions } from "@/lib/db/schema";
 import { CATEGORIES, type Category, merchantKey, ruleClassify } from "@/lib/categories";
@@ -79,19 +79,9 @@ export async function POST() {
     pending.push({ id: t.id, key, row: t });
   }
 
-  // Apply rule + cache hits
-  for (const a of ruleAssignments) {
-    await db
-      .update(transactions)
-      .set({ category: a.category })
-      .where(eq(transactions.id, a.id));
-  }
-  for (const a of cacheAssignments) {
-    await db
-      .update(transactions)
-      .set({ category: a.category })
-      .where(eq(transactions.id, a.id));
-  }
+  // Apply rule + cache hits. Batch by category so we run one UPDATE per
+  // category (id = ANY(...)) instead of one per transaction.
+  await applyByCategory([...ruleAssignments, ...cacheAssignments]);
 
   // For pending: collapse to unique merchant keys with sample context
   const uniqueMerchants = new Map<string, { samples: string[]; signedAmounts: number[] }>();
@@ -117,30 +107,31 @@ export async function POST() {
     const result = await llmCategorize(merchantList);
     llmCalls = 1;
 
-    // Persist into cache + apply to transactions
-    for (const [key, cat] of Object.entries(result)) {
-      if (!CATEGORIES.includes(cat as Category)) continue;
+    // Persist into cache in one bulk upsert (each row keeps its own category).
+    const cacheValues = Object.entries(result)
+      .filter(([, cat]) => CATEGORIES.includes(cat as Category))
+      .map(([key, cat]) => ({ key, category: cat, source: "llm", updatedAt: new Date() }));
+    if (cacheValues.length) {
       await db
         .insert(merchantCategories)
-        .values({ key, category: cat, source: "llm", updatedAt: new Date() })
+        .values(cacheValues)
         .onConflictDoUpdate({
           target: merchantCategories.key,
-          set: { category: cat, source: "llm", updatedAt: new Date() },
+          set: { category: sql`excluded.category`, source: "llm", updatedAt: new Date() },
         });
     }
 
-    // Re-pull cache and apply pending
-    const freshCache = new Map(
-      (await db.select().from(merchantCategories)).map((r) => [r.key, r.category as Category]),
+    // Apply pending transactions, batched by category. Resolve each merchant
+    // from the LLM result (falling back to the prior cache for any it skipped).
+    const resolved = (key: string): Category | undefined => {
+      const c = result[key];
+      return c && CATEGORIES.includes(c as Category) ? (c as Category) : cache.get(key);
+    };
+    await applyByCategory(
+      pending
+        .map((p) => ({ id: p.id, category: resolved(p.key) }))
+        .filter((a): a is { id: number; category: Category } => Boolean(a.category)),
     );
-    for (const p of pending) {
-      const cat = freshCache.get(p.key);
-      if (!cat) continue;
-      await db
-        .update(transactions)
-        .set({ category: cat })
-        .where(eq(transactions.id, p.id));
-    }
   }
 
   return NextResponse.json({
@@ -151,6 +142,25 @@ export async function POST() {
     llm_classified: pending.length,
     llm_calls: llmCalls,
   });
+}
+
+/**
+ * Apply category assignments with one UPDATE per distinct category
+ * (`WHERE id = ANY(ids)`) instead of one UPDATE per transaction.
+ */
+async function applyByCategory(assignments: { id: number; category: Category }[]) {
+  if (assignments.length === 0) return;
+  const byCat = new Map<Category, number[]>();
+  for (const a of assignments) {
+    const ids = byCat.get(a.category) ?? [];
+    ids.push(a.id);
+    byCat.set(a.category, ids);
+  }
+  await Promise.all(
+    [...byCat.entries()].map(([category, ids]) =>
+      db.update(transactions).set({ category }).where(inArray(transactions.id, ids)),
+    ),
+  );
 }
 
 const SYSTEM = `You categorize bank transactions for a personal finance app.

@@ -100,20 +100,25 @@ export async function GET() {
     const last = new Date(latestDate);
     const candidates: Date[] = [];
 
-    if (s.cadence === "monthly") {
-      for (let i = 1; i <= 3; i++) {
-        const next = new Date(last);
-        next.setMonth(next.getMonth() + i);
-        candidates.push(next);
+    // Roll the cadence forward from the last seen charge until it reaches
+    // today, then collect every occurrence inside the horizon. This keeps
+    // projections correct even when the latest matching transaction is old
+    // (e.g. a gap in the data), instead of projecting into the past.
+    const stepMonths = s.cadence === "monthly" ? 1 : s.cadence === "yearly" ? 12 : 0;
+    if (stepMonths > 0) {
+      const next = new Date(last);
+      while (next.getTime() < now.getTime()) next.setMonth(next.getMonth() + stepMonths);
+      while (next.getTime() <= horizonMs) {
+        candidates.push(new Date(next));
+        next.setMonth(next.getMonth() + stepMonths);
       }
     } else if (s.cadence === "weekly") {
-      for (let i = 1; i <= 9; i++) {
-        candidates.push(new Date(last.getTime() + i * 7 * 86_400_000));
-      }
-    } else if (s.cadence === "yearly") {
       const next = new Date(last);
-      next.setFullYear(next.getFullYear() + 1);
-      candidates.push(next);
+      while (next.getTime() < now.getTime()) next.setTime(next.getTime() + 7 * 86_400_000);
+      while (next.getTime() <= horizonMs) {
+        candidates.push(new Date(next));
+        next.setTime(next.getTime() + 7 * 86_400_000);
+      }
     }
 
     for (const c of candidates) {

@@ -7,7 +7,7 @@ import { recalcInvoiceTotals, syncInvoicePaymentState } from "@/lib/invoice-serv
 
 export const runtime = "nodejs";
 
-type LineInput = { description?: string; quantity?: string; unitPriceCents?: number };
+type LineInput = { description?: string; details?: string; unit?: string; quantity?: string; unitPriceCents?: number };
 
 async function idFrom(ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -49,11 +49,21 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   const body = (await req.json().catch(() => null)) as {
     customerId?: number | null;
     customerName?: string | null;
+    documentType?: string;
     issueDate?: string;
     dueDate?: string | null;
     currency?: string;
     notes?: string | null;
+    headerText?: string | null;
     footer?: string | null;
+    orderNumber?: string | null;
+    servicePeriodStart?: string | null;
+    servicePeriodEnd?: string | null;
+    recurrenceKind?: string;
+    recurrenceInterval?: string | null;
+    recurrenceEndAt?: string | null;
+    discountKind?: string;
+    discountPercent?: number;
     discountCents?: number;
     lines?: LineInput[];
   } | null;
@@ -74,11 +84,23 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     patch.customerName = body.customerName?.trim() || null;
   }
 
+  if (typeof body.documentType === "string") patch.documentType = body.documentType === "credit_note" ? "credit_note" : "invoice";
   if (typeof body.issueDate === "string" && body.issueDate.trim()) patch.issueDate = body.issueDate.trim();
   if ("dueDate" in body) patch.dueDate = body.dueDate?.trim() || null;
   if (typeof body.currency === "string" && body.currency.trim()) patch.currency = body.currency.trim();
   if ("notes" in body) patch.notes = body.notes?.trim() || null;
+  if ("headerText" in body) patch.headerText = body.headerText?.trim() || null;
   if ("footer" in body) patch.footer = body.footer?.trim() || null;
+  if ("orderNumber" in body) patch.orderNumber = body.orderNumber?.trim() || null;
+  if ("servicePeriodStart" in body) patch.servicePeriodStart = body.servicePeriodStart?.trim() || null;
+  if ("servicePeriodEnd" in body) patch.servicePeriodEnd = body.servicePeriodEnd?.trim() || null;
+  if (typeof body.recurrenceKind === "string") patch.recurrenceKind = body.recurrenceKind === "recurring" ? "recurring" : "one_off";
+  if ("recurrenceInterval" in body) patch.recurrenceInterval = body.recurrenceInterval?.trim() || null;
+  if ("recurrenceEndAt" in body) patch.recurrenceEndAt = body.recurrenceEndAt?.trim() || null;
+  if (typeof body.discountKind === "string") {
+    patch.discountKind = body.discountKind === "percent" ? "percent" : "amount";
+    patch.discountPercent = body.discountKind === "percent" ? String(Number(body.discountPercent) || 0) : null;
+  }
   if ("discountCents" in body) patch.discountCents = Math.max(0, Math.round(Number(body.discountCents) || 0));
 
   await db.update(invoices).set(patch).where(eq(invoices.id, id));
@@ -92,6 +114,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       return {
         invoiceId: id,
         description: (l.description ?? "").trim(),
+        details: l.details?.trim() || null,
+        unit: l.unit?.trim() || null,
         quantity,
         unitPriceCents,
         amountCents: lineAmountCents(quantity, unitPriceCents),

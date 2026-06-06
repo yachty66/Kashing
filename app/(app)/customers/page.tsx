@@ -8,6 +8,7 @@ type Customer = {
   email: string | null;
   addressLines: string | null;
   city: string | null;
+  brNumber: string | null;
   vatId: string | null;
   taxId: string | null;
   phone: string | null;
@@ -30,7 +31,7 @@ export default function CustomersPage() {
     const q = query.trim().toLowerCase();
     if (!q) return rows ?? [];
     return (rows ?? []).filter((r) =>
-      [r.name, r.email, r.city, r.vatId].filter(Boolean).join(" ").toLowerCase().includes(q),
+      [r.name, r.email, r.city, r.brNumber].filter(Boolean).join(" ").toLowerCase().includes(q),
     );
   }, [rows, query]);
 
@@ -55,7 +56,7 @@ export default function CustomersPage() {
       <div className="my-5">
         <input
           type="search"
-          placeholder="Name, email, city, VAT ID…"
+          placeholder="Name, email, city, BR No.…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full max-w-md px-3 py-2.5 rounded-lg border border-line bg-card text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20"
@@ -74,7 +75,7 @@ export default function CustomersPage() {
                 <th className="font-medium px-4 py-3 border-b border-line">CUSTOMER</th>
                 <th className="font-medium px-4 py-3 border-b border-line">EMAIL</th>
                 <th className="font-medium px-4 py-3 border-b border-line">CITY</th>
-                <th className="font-medium px-4 py-3 border-b border-line">VAT ID</th>
+                <th className="font-medium px-4 py-3 border-b border-line">BR No.</th>
                 <th className="font-medium px-4 py-3 border-b border-line w-20"></th>
               </tr>
             </thead>
@@ -84,7 +85,7 @@ export default function CustomersPage() {
                   <td className="px-4 py-3 border-t border-line font-medium">{c.name}</td>
                   <td className="px-4 py-3 border-t border-line text-muted">{c.email || "—"}</td>
                   <td className="px-4 py-3 border-t border-line text-muted">{c.city || "—"}</td>
-                  <td className="px-4 py-3 border-t border-line text-muted tabular-nums">{c.vatId || "—"}</td>
+                  <td className="px-4 py-3 border-t border-line text-muted tabular-nums">{c.brNumber || "—"}</td>
                   <td className="px-4 py-3 border-t border-line text-right whitespace-nowrap">
                     <button onClick={() => setEditing(c)} className="text-muted hover:text-foreground" aria-label="Edit">✎</button>
                     <button onClick={() => remove(c.id)} className="ml-3 text-muted hover:text-red-500" aria-label="Delete">🗑</button>
@@ -147,7 +148,7 @@ function CustomerModal({ initial, onClose, onSaved }: { initial: Partial<Custome
           <Field label="Address"><Inp v={f.addressLines ?? ""} on={(v) => set("addressLines", v)} /></Field>
           <div className="grid grid-cols-3 gap-3">
             <Field label="City"><Inp v={f.city ?? ""} on={(v) => set("city", v)} /></Field>
-            <Field label="VAT ID"><Inp v={f.vatId ?? ""} on={(v) => set("vatId", v)} /></Field>
+            <Field label="BR No."><Inp v={f.brNumber ?? ""} on={(v) => set("brNumber", v)} /></Field>
             <Field label="Tax no."><Inp v={f.taxId ?? ""} on={(v) => set("taxId", v)} /></Field>
           </div>
         </div>

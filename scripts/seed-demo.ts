@@ -98,11 +98,11 @@ async function main() {
   // --- 5. Suppliers --------------------------------------------------------
   const [printing] = await db.insert(s.suppliers).values({
     name: "Sham Shui Po Printing", normalizedName: "sham shui po printing", city: "Sham Shui Po",
-    fpsProxyType: "mobile", fpsProxyId: "+85261234567",
+    taxId: "71234567", email: "sales@sspprint.hk", fpsProxyType: "mobile", fpsProxyId: "+85261234567",
   }).returning();
   await db.insert(s.suppliers).values({
     name: "HK Stationery Wholesale", normalizedName: "hk stationery wholesale", city: "Kwai Chung",
-    fpsProxyType: "fpsid", fpsProxyId: "1088277",
+    taxId: "72345678", email: "orders@hkstationery.hk", fpsProxyType: "fpsid", fpsProxyId: "1088277",
   });
   console.log("✓ suppliers: 2");
 
@@ -133,11 +133,13 @@ async function main() {
   const accts = await db.select().from(s.accounts);
   const checking = accts.find((a) => (a.displayName ?? "").toLowerCase().includes("hkd checking")) ?? accts[0];
   if (!checking) throw new Error("No bank account found — connect a bank first.");
-  async function tx(amountCents: number, memo: string, when: Date, creditor?: string) {
+  async function tx(amountCents: number, memo: string, when: Date, counterparty?: string) {
+    // Set both names so the merchant shows whether it's a credit or a debit
+    // (the bookkeeping view reads debtorName for credits, creditorName for debits).
     const [t] = await db.insert(s.transactions).values({
       accountId: checking.id, gocardlessId: `demo-${Math.random().toString(36).slice(2, 10)}`,
       bookingDate: iso(when), valueDate: iso(when), amountCents, currency: "HKD",
-      creditorName: creditor ?? null, memo, status: "booked", raw: {},
+      creditorName: counterparty ?? null, debtorName: counterparty ?? null, memo, status: "booked", raw: {},
     }).returning();
     return t;
   }
@@ -160,21 +162,22 @@ async function main() {
   console.log("✓ invoice payments: 2");
 
   // --- 9. Expenses (employee receipts) ------------------------------------
+  const receipt = (label: string) => `https://placehold.co/480x640/png?text=${encodeURIComponent(label)}`;
   await db.insert(s.expenses).values({
     submittedBy: employee.id, amountCents: 8500, currency: "HKD", merchant: "Maxim's MX",
     brNumber: "34567890", category: "Meals", expenseDate: iso(daysAgo(3)),
-    paymentType: "reimbursement", status: "approved", approvedBy: manager.id,
+    receiptUrl: receipt("Maxim's HK$85"), paymentType: "reimbursement", status: "approved", approvedBy: manager.id,
     rawParse: { seeded: true },
   });
   await db.insert(s.expenses).values({
     submittedBy: employee.id, amountCents: 65000, currency: "HKD", merchant: "Tin Lung Heen",
     brNumber: "45678901", category: "Client entertainment", expenseDate: iso(daysAgo(1)),
-    paymentType: "reimbursement", status: "pending", rawParse: { seeded: true },
+    receiptUrl: receipt("Tin Lung Heen HK$650"), paymentType: "reimbursement", status: "pending", rawParse: { seeded: true },
   });
   await db.insert(s.expenses).values({
     submittedBy: employee.id, amountCents: 120000, currency: "HKD", merchant: "Sham Shui Po Printing",
     brNumber: "56789012", category: "Office supplies", expenseDate: iso(daysAgo(5)),
-    paymentType: "reimbursement", status: "approved", approvedBy: manager.id,
+    receiptUrl: receipt("SSP Printing HK$1200"), paymentType: "reimbursement", status: "approved", approvedBy: manager.id,
     rawParse: { seeded: true },
   });
   console.log("✓ expenses: 3 (approved / pending / approved)");

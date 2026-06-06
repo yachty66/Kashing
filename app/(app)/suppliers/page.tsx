@@ -13,6 +13,8 @@ type Supplier = {
   email: string | null;
   iban: string | null;
   bic: string | null;
+  fpsProxyType: string | null;
+  fpsProxyId: string | null;
 };
 
 const EMPTY: Partial<Supplier> = {};
@@ -35,7 +37,7 @@ export default function SuppliersPage() {
     const q = query.trim().toLowerCase();
     if (!q) return rows ?? [];
     return (rows ?? []).filter((r) =>
-      [r.name, r.city, r.taxId, r.iban, r.email].filter(Boolean).join(" ").toLowerCase().includes(q),
+      [r.name, r.city, r.taxId, r.fpsProxyId, r.email].filter(Boolean).join(" ").toLowerCase().includes(q),
     );
   }, [rows, query]);
 
@@ -93,8 +95,8 @@ export default function SuppliersPage() {
               <tr className="text-muted text-left">
                 <th className="font-medium px-4 py-3 border-b border-line">NAME</th>
                 <th className="font-medium px-4 py-3 border-b border-line">CITY</th>
-                <th className="font-medium px-4 py-3 border-b border-line">TAX ID</th>
-                <th className="font-medium px-4 py-3 border-b border-line">IBAN</th>
+                <th className="font-medium px-4 py-3 border-b border-line">BR No.</th>
+                <th className="font-medium px-4 py-3 border-b border-line">FPS</th>
                 <th className="font-medium px-4 py-3 border-b border-line">EMAIL</th>
                 <th className="font-medium px-4 py-3 border-b border-line w-20"></th>
               </tr>
@@ -108,7 +110,7 @@ export default function SuppliersPage() {
                   </td>
                   <td className="px-4 py-3 border-t border-line text-muted">{s.city || "—"}</td>
                   <td className="px-4 py-3 border-t border-line text-muted tabular-nums">{s.taxId || "—"}</td>
-                  <td className="px-4 py-3 border-t border-line text-muted tabular-nums">{s.iban || "–"}</td>
+                  <td className="px-4 py-3 border-t border-line text-muted tabular-nums">{s.fpsProxyId || "—"}</td>
                   <td className="px-4 py-3 border-t border-line text-muted">{s.email || "—"}</td>
                   <td className="px-4 py-3 border-t border-line text-right whitespace-nowrap">
                     <button onClick={() => setEditing(s)} className="text-muted hover:text-foreground" aria-label="Edit">✎</button>

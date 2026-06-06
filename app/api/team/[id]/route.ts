@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { normalizePhone } from "@/lib/users";
 
 export const runtime = "nodejs";
 
@@ -20,13 +21,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const set: Partial<typeof users.$inferInsert> = {};
   if (typeof b.name === "string" && b.name.trim()) set.name = b.name.trim();
+  if (typeof b.phone === "string" && b.phone.trim()) set.phone = normalizePhone(b.phone);
   if (b.role === "manager" || b.role === "employee") set.role = b.role;
   if ("monthlyAllowanceHkd" in b) set.monthlyAllowanceCents = toCents(b.monthlyAllowanceHkd);
   if ("maxSingleQrHkd" in b) set.maxSingleQrCents = toCents(b.maxSingleQrHkd);
   if ("autoApproveUnderHkd" in b) set.autoApproveUnderCents = toCents(b.autoApproveUnderHkd);
   if (Object.keys(set).length === 0) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
 
-  const [row] = await db.update(users).set(set).where(eq(users.id, userId)).returning();
+  let row;
+  try {
+    [row] = await db.update(users).set(set).where(eq(users.id, userId)).returning();
+  } catch {
+    return NextResponse.json({ error: "That phone number is already registered" }, { status: 409 });
+  }
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ user: row });
 }

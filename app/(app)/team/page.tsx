@@ -94,32 +94,40 @@ function hkd(cents: number | null): string {
 
 function EditModal({ member, onClose, onSaved }: { member: Member; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(member.name);
+  const [phone, setPhone] = useState(member.phone);
   const [role, setRole] = useState(member.role);
   const [allowance, setAllowance] = useState(hkd(member.monthlyAllowanceCents));
   const [maxQr, setMaxQr] = useState(hkd(member.maxSingleQrCents));
   const [autoApprove, setAutoApprove] = useState(hkd(member.autoApproveUnderCents));
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    setError(null);
     setSaving(true);
-    await fetch(`/api/team/${member.id}`, {
+    const r = await fetch(`/api/team/${member.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name,
+        phone,
         role,
         monthlyAllowanceHkd: allowance === "" ? 0 : Number(allowance),
         maxSingleQrHkd: maxQr === "" ? 0 : Number(maxQr),
         autoApproveUnderHkd: autoApprove === "" ? 0 : Number(autoApprove),
       }),
     });
-    onSaved();
+    if (r.ok) return onSaved();
+    setError((await r.json().catch(() => ({})))?.error ?? "Failed");
+    setSaving(false);
   }
 
   return (
     <Modal title={`Edit ${member.name}`} onClose={onClose} onSubmit={submit} saving={saving}>
+      {error && <div className="px-4 py-3 rounded-lg bg-card border border-foreground text-sm">{error}</div>}
       <Field label="Name"><Inp v={name} on={setName} /></Field>
+      <Field label="WhatsApp phone (E.164)"><Inp v={phone} on={setPhone} placeholder="+85291234567" /></Field>
       <Field label="Role">
         <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-line bg-card text-sm">
           <option value="employee">employee</option>

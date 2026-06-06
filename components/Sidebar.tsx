@@ -7,7 +7,6 @@ type NavItem = { href?: string; label: string; icon?: () => React.ReactNode; soo
 
 const NAV: NavItem[] = [
   { href: "/subscriptions", label: "Contracts", icon: SubsIcon },
-  { href: "/transactions", label: "Transactions", icon: TxIcon },
   { href: "/invoices", label: "Invoices", icon: InvoiceIcon },
   { href: "/chat", label: "AI Chat", icon: ChatIcon },
   { label: "Finance", section: true },
@@ -86,15 +85,6 @@ function AnalysisIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 3v18h18" />
       <path d="M7 14l4-4 4 4 5-7" />
-    </svg>
-  );
-}
-
-function TxIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 7h14M17 7l-3-3M17 7l-3 3" />
-      <path d="M21 17H7M7 17l3-3M7 17l3 3" />
     </svg>
   );
 }

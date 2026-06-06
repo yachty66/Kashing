@@ -27,10 +27,18 @@ export async function allocateInvoiceNumber(): Promise<string> {
   return `${profile.invoicePrefix}-${year}-${String(seq).padStart(4, "0")}`;
 }
 
-/** Recompute subtotal/total from the invoice's lines and persist them. */
+/**
+ * Recompute subtotal/total from the invoice's lines + discount and persist.
+ * For percent discounts the effective discountCents is re-derived from the
+ * stored percentage against the fresh subtotal.
+ */
 export async function recalcInvoiceTotals(invoiceId: number): Promise<void> {
   const [inv] = await db
-    .select({ discountCents: invoices.discountCents })
+    .select({
+      discountCents: invoices.discountCents,
+      discountKind: invoices.discountKind,
+      discountPercent: invoices.discountPercent,
+    })
     .from(invoices)
     .where(eq(invoices.id, invoiceId));
   if (!inv) return;
@@ -39,10 +47,15 @@ export async function recalcInvoiceTotals(invoiceId: number): Promise<void> {
     .from(invoiceLines)
     .where(eq(invoiceLines.invoiceId, invoiceId));
   const subtotal = lines.reduce((s, l) => s + Number(l.amountCents), 0);
-  const total = Math.max(0, subtotal - Number(inv.discountCents));
+  let discount = Number(inv.discountCents);
+  if (inv.discountKind === "percent") {
+    const pct = Math.max(0, Math.min(100, Number(inv.discountPercent) || 0));
+    discount = Math.round((subtotal * pct) / 100);
+  }
+  const total = Math.max(0, subtotal - discount);
   await db
     .update(invoices)
-    .set({ subtotalCents: subtotal, totalCents: total, updatedAt: new Date() })
+    .set({ subtotalCents: subtotal, discountCents: discount, totalCents: total, updatedAt: new Date() })
     .where(eq(invoices.id, invoiceId));
 }
 

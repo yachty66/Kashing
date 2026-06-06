@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type NavItem = { href?: string; label: string; icon?: () => React.ReactNode; soon?: boolean; section?: true };
 
@@ -61,7 +62,8 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="px-3 py-3 border-t border-line">
+      <div className="px-3 py-3 border-t border-line space-y-1">
+        <ThemeToggle />
         <div className="px-2 text-xs text-muted">local-first · no sign-in</div>
       </div>
     </aside>

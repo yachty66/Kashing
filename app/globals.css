@@ -13,7 +13,9 @@
   color-scheme: dark;
 }
 
-/* Light theme — toggled by setting data-theme="light" on <html>. */
+/* Light theme — toggled by setting data-theme="light" on <html>. We override
+   BOTH the base vars and the Tailwind --color-* vars the utilities read, so the
+   switch is bulletproof regardless of @theme var-resolution. */
 :root[data-theme="light"] {
   --background: #ffffff;
   --foreground: #0f172a;
@@ -24,6 +26,13 @@
   --accent-fg: #ffffff;
   --card: #ffffff;
   --sidebar: #f8fafc;
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+  --color-accent: #0f172a;
+  --color-card: #ffffff;
+  --color-sidebar: #f8fafc;
   color-scheme: light;
 }
 

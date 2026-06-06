@@ -8,18 +8,6 @@
   Your personal AI CFO. Local-first.
 </p>
 
-<!--
-  Demo video. Source URL is a GitHub user-attachments asset uploaded
-  via issue #1; the issue itself only served as an upload host. To
-  re-record: drag a new mp4 into any issue or PR composer on this
-  repo, copy the new https://github.com/user-attachments/assets/<id>
-  URL, and replace the src below.
--->
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/008f233b-c1fe-4e34-8f47-b5fe9f05612e" controls width="720"></video>
-</p>
-
 Kashing is a dashboard for your money. It connects to European banks via GoCardless (PSD2 open banking), pulls your transactions, finds every contract you're paying for using an LLM (not regex), and lets you ask anything about your finances in natural language.
 
 ## Quickstart

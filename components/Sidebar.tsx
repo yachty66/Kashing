@@ -32,7 +32,7 @@ export function Sidebar() {
       <div className="px-5 py-5 border-b border-line">
         <Link href="/incoming" className="flex items-center gap-2.5 font-semibold tracking-tight text-foreground">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" width={26} height={26} className="rounded-md" />
+          <img src="/logo.png" alt="Kashing 動力" className="h-7 w-auto rounded" />
           <span className="text-lg">Kashing</span>
         </Link>
       </div>

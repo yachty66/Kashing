@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { accounts, analyses, requisitions, transactions } from "@/lib/db/schema";
+import { accounts, analyses, finverseIdentities, requisitions, transactions } from "@/lib/db/schema";
 import { deleteRequisition } from "@/lib/gocardless";
 
 export const runtime = "nodejs";
@@ -18,6 +18,7 @@ export async function POST() {
   await db.delete(transactions);
   await db.delete(accounts);
   await db.delete(requisitions);
+  await db.delete(finverseIdentities);
   await db.delete(analyses);
   return NextResponse.json({ ok: true });
 }

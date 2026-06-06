@@ -11,10 +11,35 @@ export const requisitions = pgTable("requisitions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-/** Bank accounts returned by GoCardless after consent. */
+/**
+ * Finverse login identity = one bank-consent flow result for HK/Asia banks.
+ * The Finverse equivalent of a GoCardless requisition. We insert a PENDING
+ * row keyed by `state` when minting the Link URL, then fill in the login
+ * identity id + access token on the callback once the user has linked.
+ */
+export const finverseIdentities = pgTable("finverse_identities", {
+  id: serial("id").primaryKey(),
+  state: text("state").notNull().unique(),
+  loginIdentityId: text("login_identity_id"),
+  institutionName: text("institution_name"),
+  accessToken: text("access_token"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  status: text("status").notNull().default("PENDING"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Bank accounts returned after consent. `provider` distinguishes GoCardless
+ * (EU/UK) from Finverse (HK/Asia). For backward compatibility the unique
+ * external account id is still stored in `gocardless_id` for both providers.
+ * For Finverse rows it holds the Finverse account_id. Finverse accounts also
+ * link back to their login identity via `finverse_identity_id`.
+ */
 export const accounts = pgTable("accounts", {
   id: serial("id").primaryKey(),
   gocardlessId: text("gocardless_id").notNull().unique(),
+  provider: text("provider").notNull().default("gocardless"), // 'gocardless' | 'finverse'
+  finverseIdentityId: integer("finverse_identity_id").references(() => finverseIdentities.id, { onDelete: "cascade" }),
   institutionId: text("institution_id"),
   iban: text("iban"),
   displayName: text("display_name"),

@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { accounts, analyses, transactions } from "@/lib/db/schema";
+import { accounts, analyses, finverseIdentities, transactions } from "@/lib/db/schema";
 import { getAccountBalance, listTransactions } from "@/lib/gocardless";
+import {
+  listTransactions as fvListTransactions,
+  normalizeAmountCents as fvNormalizeAmountCents,
+  type FinverseTransaction,
+} from "@/lib/finverse";
 import { detectHeuristic, detectLLM, writeBrief, type Tx } from "@/lib/detect";
 
 export const runtime = "nodejs";
@@ -16,9 +21,72 @@ export async function POST() {
 
   const errors: string[] = [];
 
+  // Finverse returns transactions per login identity (covering all of its
+  // accounts at once), so pre-fetch each identity's transactions and token
+  // once rather than per account.
+  const fvAcctRows = accts.filter((a) => a.provider === "finverse");
+  const fvTxByIdentity = new Map<number, FinverseTransaction[]>();
+  if (fvAcctRows.length > 0) {
+    const identityIds = [
+      ...new Set(fvAcctRows.map((a) => a.finverseIdentityId).filter((x): x is number => x != null)),
+    ];
+    for (const idid of identityIds) {
+      const idRow = (
+        await db.select().from(finverseIdentities).where(eq(finverseIdentities.id, idid)).limit(1)
+      )[0];
+      if (!idRow?.accessToken) {
+        errors.push(`finverse identity ${idid}: no access token (reconnect needed)`);
+        continue;
+      }
+      if (idRow.tokenExpiresAt && idRow.tokenExpiresAt.getTime() < Date.now()) {
+        errors.push(`finverse identity ${idid}: token expired (reconnect needed)`);
+        continue;
+      }
+      try {
+        fvTxByIdentity.set(idid, await fvListTransactions(idRow.accessToken));
+      } catch (e) {
+        errors.push(`finverse identity ${idid}: ${e}`);
+      }
+    }
+  }
+
   // Pull + persist every account's transactions; skip ones that error out
   // (Spaces / sub-accounts often 4xx; we don't want the whole job to die).
   for (const acct of accts) {
+    // ---- Finverse (HK/Asia) ----
+    if (acct.provider === "finverse") {
+      const idid = acct.finverseIdentityId;
+      const all = idid != null ? fvTxByIdentity.get(idid) ?? [] : [];
+      const mine = all.filter((t) => t.account_id === acct.gocardlessId);
+      for (const t of mine) {
+        const gid = t.transaction_id ?? null;
+        if (gid) {
+          const exists = await db
+            .select({ id: transactions.id })
+            .from(transactions)
+            .where(eq(transactions.gocardlessId, gid))
+            .limit(1);
+          if (exists.length > 0) continue;
+        }
+        await db.insert(transactions).values({
+          accountId: acct.id,
+          gocardlessId: gid,
+          bookingDate: t.posted_date ?? t.transaction_date ?? null,
+          valueDate: t.transaction_date ?? null,
+          amountCents: fvNormalizeAmountCents(t),
+          currency: t.currency ?? "HKD",
+          creditorName: t.merchant_name ?? t.description ?? null,
+          debtorName: null,
+          memo: t.description ?? null,
+          status: "booked",
+          raw: t as unknown as object,
+        });
+      }
+      await db.update(accounts).set({ lastPullAt: new Date() }).where(eq(accounts.id, acct.id));
+      continue;
+    }
+
+    // ---- GoCardless (EU/UK, default) ----
     let tx;
     try {
       tx = await listTransactions(acct.gocardlessId);

@@ -20,7 +20,7 @@ export function Sidebar() {
         <Link href="/subscriptions" className="flex items-center gap-2.5 font-semibold tracking-tight text-foreground">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" width={26} height={26} className="rounded-md" />
-          <span className="text-lg">Jacob</span>
+          <span className="text-lg">Kashing</span>
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

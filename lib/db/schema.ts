@@ -386,22 +386,8 @@ export const bills = pgTable("bills", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-/**
- * Generated SEPA Credit Transfer files (pain.001.001.03). One file bundles the
- * selected unpaid bills into a single bank upload; the XML is stored inline for
- * re-download. `entityName` is the debtor (the single business profile).
- */
-export const sepaFiles = pgTable("sepa_files", {
-  id: serial("id").primaryKey(),
-  filename: text("filename").notNull(),
-  entityName: text("entity_name").notNull(),
-  debtorIban: text("debtor_iban").notNull(),
-  count: integer("count").notNull().default(0),
-  totalCents: bigint("total_cents", { mode: "number" }).notNull().default(0),
-  status: text("status").notNull().default("generated"),
-  xml: text("xml").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+// SEPA export removed — Hong Kong uses FPS, not SEPA. Supplier bills are now
+// paid via the FPS payment rail (see lib/payment-rail.ts + pay_supplier).
 
 /**
  * Sales invoices. `status` is the stored lifecycle

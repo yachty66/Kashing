@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
       email: b.email?.trim() || null,
       iban: normalizeIban(b.iban),
       bic: normalizeBic(b.bic),
+      fpsProxyType: b.fpsProxyType?.trim() || null,
+      fpsProxyId: b.fpsProxyId?.trim() || null,
     })
     .returning();
   return NextResponse.json({ supplier: row }, { status: 201 });

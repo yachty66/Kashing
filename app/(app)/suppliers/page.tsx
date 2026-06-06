@@ -168,14 +168,29 @@ function SupplierModal({ initial, onClose, onSaved }: { initial: Partial<Supplie
           {error && <div className="px-4 py-3 rounded-lg bg-card border border-foreground text-sm">{error}</div>}
           <Field label="Name *"><Inp v={f.name ?? ""} on={(v) => set("name", v)} autoFocus /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Tax ID"><Inp v={f.taxId ?? ""} on={(v) => set("taxId", v)} /></Field>
+            <Field label="BR No."><Inp v={f.taxId ?? ""} on={(v) => set("taxId", v)} /></Field>
             <Field label="Email"><Inp v={f.email ?? ""} on={(v) => set("email", v)} /></Field>
           </div>
           <Field label="Address"><Inp v={f.addressLines ?? ""} on={(v) => set("addressLines", v)} /></Field>
           <div className="grid grid-cols-3 gap-3">
             <Field label="Postcode"><Inp v={f.postalCode ?? ""} on={(v) => set("postalCode", v)} /></Field>
             <Field label="City"><Inp v={f.city ?? ""} on={(v) => set("city", v)} /></Field>
-            <Field label="Country"><Inp v={f.country ?? ""} on={(v) => set("country", v)} placeholder="DE" /></Field>
+            <Field label="Country"><Inp v={f.country ?? ""} on={(v) => set("country", v)} placeholder="HK" /></Field>
+          </div>
+          <p className="text-xs text-muted pt-1">Pay by FPS (Hong Kong) or IBAN (EU / cross-border).</p>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="FPS type">
+              <select value={f.fpsProxyType ?? ""} onChange={(e) => set("fpsProxyType", e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-line bg-card text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20">
+                <option value="">—</option>
+                <option value="mobile">Mobile</option>
+                <option value="email">Email</option>
+                <option value="fpsid">FPS ID</option>
+              </select>
+            </Field>
+            <div className="col-span-2">
+              <Field label="FPS proxy"><Inp v={f.fpsProxyId ?? ""} on={(v) => set("fpsProxyId", v)} placeholder="+852… / email / 7-digit ID" /></Field>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="IBAN"><Inp v={f.iban ?? ""} on={(v) => set("iban", v)} /></Field>

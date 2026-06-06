@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (b.name !== undefined) { patch.name = b.name.trim(); patch.normalizedName = b.name.trim().toLowerCase(); }
-  for (const k of ["taxId", "addressLines", "postalCode", "city", "country", "email"]) {
+  for (const k of ["taxId", "addressLines", "postalCode", "city", "country", "email", "fpsProxyType", "fpsProxyId"]) {
     if (k in b) patch[k] = b[k]?.trim() || null;
   }
   if ("iban" in b) patch.iban = normalizeIban(b.iban);

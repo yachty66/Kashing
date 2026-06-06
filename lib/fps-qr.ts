@@ -19,6 +19,17 @@ function fpsClean(s: string): string {
   return s.replace(/[^A-Za-z0-9.@_+-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 25);
 }
 
+// hkqr-fps wants mobiles as "+<cc>-<number>" (e.g. +852-91234567). Normalize
+// common shapes (+85291234567, 91234567, with spaces) to that.
+function normalizeMobile(raw: string): string {
+  const s = raw.replace(/\s+/g, "");
+  if (/^\+\d{1,3}-\d+$/.test(s)) return s; // already +cc-number
+  const withCc = s.match(/^\+(\d{1,3})(\d{6,})$/);
+  if (withCc) return `+${withCc[1]}-${withCc[2]}`;
+  if (/^\d{8}$/.test(s)) return `+852-${s}`; // bare HK 8-digit
+  return s;
+}
+
 /** Build the FPS EMVCo payload string for a fixed-amount QR. */
 export function buildFpsPayload(opts: {
   amount: number; // HKD, major units
@@ -28,22 +39,35 @@ export function buildFpsPayload(opts: {
   proxyType?: "mobile" | "email" | "fpsid";
   proxyId?: string;
 }): string {
-  const fps = new FPS();
-  const id = opts.proxyId || MERCHANT_FPS_ID;
-  if (opts.proxyType === "mobile") fps.setMobile(id);
-  else if (opts.proxyType === "email") fps.setEmail(id);
-  else fps.setFPSId(id);
-  fps.setHKD();
-  fps.setAmount(opts.amount);
   const bill = opts.billNumber && fpsClean(opts.billNumber);
   const ref = opts.reference && fpsClean(opts.reference);
-  if (bill) fps.setBillNumber(bill);
-  if (ref) fps.setReference(ref);
-  const res = fps.generate();
-  if (typeof res.isError === "function" && res.isError()) {
-    throw new Error(`FPS payload generation failed: ${res.message}`);
+
+  const build = (setIdentity: (fps: FPS) => void): string => {
+    const fps = new FPS();
+    setIdentity(fps);
+    fps.setHKD();
+    fps.setAmount(opts.amount);
+    if (bill) fps.setBillNumber(bill);
+    if (ref) fps.setReference(ref);
+    const res = fps.generate();
+    if (typeof res.isError === "function" && res.isError()) {
+      throw new Error(`FPS payload generation failed: ${res.message}`);
+    }
+    return String(res.data);
+  };
+
+  try {
+    return build((fps) => {
+      const id = opts.proxyId?.trim();
+      if (opts.proxyType === "mobile" && id) fps.setMobile(normalizeMobile(id));
+      else if (opts.proxyType === "email" && id) fps.setEmail(id);
+      else fps.setFPSId(id || MERCHANT_FPS_ID);
+    });
+  } catch {
+    // A malformed configured proxy must never break the QR — fall back to the
+    // demo FPS ID so the code still renders and scans.
+    return build((fps) => fps.setFPSId(MERCHANT_FPS_ID));
   }
-  return String(res.data);
 }
 
 /** Render an FPS payload to a PNG buffer (for serving as WhatsApp media). */

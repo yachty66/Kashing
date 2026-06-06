@@ -60,3 +60,26 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 
 .prose p { margin: 0 0 0.75rem 0; line-height: 1.6; }
 .prose p:last-child { margin-bottom: 0; }
+
+/* Printing / Save-as-PDF: flip to black-on-white paper and drop app chrome.
+   The theme tokens are overridden so all `text-foreground` / `.card` / border
+   utilities (which resolve to these vars) render legibly on white. */
+@media print {
+  :root {
+    --background: #ffffff;
+    --foreground: #000000;
+    --muted: #555555;
+    --line: #cccccc;
+    --card: #ffffff;
+    --sidebar: #ffffff;
+  }
+  html, body { background: #ffffff; color: #000000; color-scheme: light; }
+  aside, .no-print { display: none !important; }
+  main { display: block !important; }
+  .card { border: 1px solid #cccccc !important; box-shadow: none !important; }
+  /* Status pills: force readable monochrome on paper. */
+  .pill, .pill-high, .pill-medium, .pill-low {
+    background: transparent !important; color: #000000 !important; border-color: #999999 !important;
+  }
+  @page { margin: 16mm; }
+}

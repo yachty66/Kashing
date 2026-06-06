@@ -7,19 +7,19 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 type NavItem = { href?: string; label: string; icon?: () => React.ReactNode; soon?: boolean; section?: true };
 
 const NAV: NavItem[] = [
-  { href: "/subscriptions", label: "Contracts", icon: SubsIcon },
-  { href: "/transactions", label: "Transactions", icon: TxIcon },
-  { href: "/chat", label: "AI Chat", icon: ChatIcon },
-  { label: "Finance", section: true },
-  { href: "/invoices", label: "Invoices", icon: InvoiceIcon },
-  { href: "/bills", label: "Bills", icon: BookIcon },
-  { href: "/cashflow", label: "Cash flow", icon: CashIcon },
-  { href: "/audit", label: "Audit vault", icon: ShieldIcon },
+  { label: "Incoming", section: true },
+  { href: "/incoming", label: "Overview", icon: InvoiceIcon },
+  { href: "/incoming/followups", label: "Follow-ups", icon: BellIcon },
+  { label: "Outgoing", section: true },
+  { href: "/outgoing", label: "Overview", icon: CashIcon },
+  { href: "/outgoing/logs", label: "Logs", icon: ShieldIcon },
   { label: "Master data", section: true },
   { href: "/team", label: "Team", icon: TeamIcon },
   { href: "/suppliers", label: "Suppliers", icon: TruckIcon },
   { href: "/customers", label: "Customers", icon: UsersIcon },
   { label: "More", section: true },
+  { href: "/chat", label: "AI Chat", icon: ChatIcon },
+  { href: "/subscriptions", label: "Contracts", icon: SubsIcon },
   { href: "/notifications", label: "Notifications", icon: BellIcon, soon: true },
   { href: "/analysis", label: "Analysis", icon: AnalysisIcon, soon: true },
 ];
@@ -30,7 +30,7 @@ export function Sidebar() {
   return (
     <aside className="w-60 shrink-0 border-r border-line bg-sidebar flex flex-col sticky top-0 h-screen self-start">
       <div className="px-5 py-5 border-b border-line">
-        <Link href="/subscriptions" className="flex items-center gap-2.5 font-semibold tracking-tight text-foreground">
+        <Link href="/incoming" className="flex items-center gap-2.5 font-semibold tracking-tight text-foreground">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" width={26} height={26} className="rounded-md" />
           <span className="text-lg">Kashing</span>
@@ -45,7 +45,8 @@ export function Sidebar() {
               </div>
             );
           }
-          const active = pathname === href || pathname?.startsWith(href + "/");
+          // Exact match so a domain Overview doesn't also light up on its sub-pages.
+          const active = pathname === href;
           return (
             <Link
               key={href}
@@ -94,14 +95,6 @@ function AnalysisIcon() {
   );
 }
 
-function TxIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 7h14M17 7l-3-3M17 7l-3 3" />
-      <path d="M21 17H7M7 17l3-3M7 17l3 3" />
-    </svg>
-  );
-}
 
 function ChatIcon() {
   return (
@@ -129,14 +122,6 @@ function InvoiceIcon() {
   );
 }
 
-function BookIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-    </svg>
-  );
-}
 
 function CashIcon() {
   return (

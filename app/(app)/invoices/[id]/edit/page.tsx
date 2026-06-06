@@ -39,12 +39,12 @@ export default function EditInvoicePage() {
   if (!initial) return <div className="p-8 text-muted text-sm">Loading…</div>;
 
   return (
-    <div className="p-8 w-full max-w-4xl">
+    <div className="p-8 w-full">
       <div className="mb-6">
         <Link href={`/invoices/${id}`} className="text-muted hover:text-foreground text-sm">← {number}</Link>
         <h1 className="text-2xl font-semibold tracking-tight mt-2">Edit {number}</h1>
       </div>
-      <InvoiceForm mode="edit" invoiceId={Number(id)} initial={initial} />
+      <InvoiceForm mode="edit" invoiceId={Number(id)} initial={initial} existingNumber={number} />
     </div>
   );
 }

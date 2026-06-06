@@ -15,7 +15,7 @@ export default function NewInvoicePage() {
   }, []);
 
   return (
-    <div className="p-8 w-full max-w-4xl">
+    <div className="p-8 w-full">
       <div className="mb-6">
         <Link href="/invoices" className="text-muted hover:text-foreground text-sm">← Invoices</Link>
         <h1 className="text-2xl font-semibold tracking-tight mt-2">New invoice</h1>

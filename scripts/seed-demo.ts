@@ -76,7 +76,7 @@ async function main() {
   const employee = await upsertUser(employeePhone, "Ka Ho Chan", "employee", {
     monthlyAllowanceCents: 500000, // HK$5,000
     maxSingleQrCents: 100000, // HK$1,000
-    autoApproveUnderCents: 20000, // HK$200
+    autoApproveUnderCents: 50000, // HK$500 — so a HK$420 lunch auto-approves in the demo
   });
   console.log(`✓ team: ${manager.name} (manager), ${employee.name} (employee)`);
 

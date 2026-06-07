@@ -93,7 +93,20 @@ async function main() {
     name: "Central Consulting Partners", email: "billing@centralcp.hk",
     city: "Central", brNumber: "63334455", defaultCurrency: "HKD", creditTermsDays: 15,
   }).returning();
-  console.log("✓ customers: 3");
+  // More customers for a fuller list (no invoices reference these).
+  await db.insert(s.customers).values([
+    { name: "Victoria Harbour Seafood Ltd", email: "ap@vhseafood.hk", city: "Aberdeen", brNumber: "64445566", defaultCurrency: "HKD", creditTermsDays: 30 },
+    { name: "Kowloon Bay Electronics Ltd", email: "finance@kbelectronics.hk", city: "Kowloon Bay", brNumber: "65556677", defaultCurrency: "HKD", creditTermsDays: 45 },
+    { name: "Peninsula Boutique Hotel", email: "accounts@peninsulabtq.hk", city: "Tsim Sha Tsui", brNumber: "66667788", defaultCurrency: "HKD", creditTermsDays: 30 },
+    { name: "Lantau Tours & Travel", email: "billing@lantautours.hk", city: "Tung Chung", brNumber: "67778899", defaultCurrency: "HKD", creditTermsDays: 15 },
+    { name: "Wan Chai Print House", email: "ap@wcprint.hk", city: "Wan Chai", brNumber: "68889900", defaultCurrency: "HKD", creditTermsDays: 30 },
+    { name: "New Territories Farm Produce", email: "orders@ntfarm.hk", city: "Yuen Long", brNumber: "69990011", defaultCurrency: "HKD", creditTermsDays: 30 },
+    { name: "Causeway Bay Fashion Co.", email: "finance@cbfashion.hk", city: "Causeway Bay", brNumber: "70001122", defaultCurrency: "HKD", creditTermsDays: 60 },
+    { name: "Golden Dragon Restaurant Group", email: "ap@goldendragon.hk", city: "Sha Tin", brNumber: "71112233", defaultCurrency: "HKD", creditTermsDays: 14 },
+    { name: "Aberdeen Marina Services", email: "billing@aberdeenmarina.hk", city: "Aberdeen", brNumber: "72223344", defaultCurrency: "HKD", creditTermsDays: 30 },
+    { name: "Sai Kung Cafe & Bakery", email: "hello@saikungcafe.hk", city: "Sai Kung", brNumber: "73334455", defaultCurrency: "HKD", creditTermsDays: 15 },
+  ]);
+  console.log("✓ customers: 13");
 
   // --- 5. Suppliers --------------------------------------------------------
   const [printing] = await db.insert(s.suppliers).values({
@@ -104,7 +117,18 @@ async function main() {
     name: "HK Stationery Wholesale", normalizedName: "hk stationery wholesale", city: "Kwai Chung",
     taxId: "72345678", email: "orders@hkstationery.hk", fpsProxyType: "fpsid", fpsProxyId: "1088277",
   });
-  console.log("✓ suppliers: 2");
+  // More suppliers for a fuller AP list.
+  await db.insert(s.suppliers).values([
+    { name: "Kwai Chung Logistics Ltd", normalizedName: "kwai chung logistics ltd", city: "Kwai Chung", taxId: "73456789", email: "ops@kclogistics.hk", fpsProxyType: "fpsid", fpsProxyId: "2099388" },
+    { name: "HK Packaging Supplies", normalizedName: "hk packaging supplies", city: "Tuen Mun", taxId: "74567890", email: "sales@hkpackaging.hk", fpsProxyType: "mobile", fpsProxyId: "+85262345678" },
+    { name: "Pearl River Textiles", normalizedName: "pearl river textiles", city: "Cheung Sha Wan", taxId: "75678901", email: "orders@prtextiles.hk", fpsProxyType: "mobile", fpsProxyId: "+85263456789" },
+    { name: "PCCW Business", normalizedName: "pccw business", city: "Quarry Bay", taxId: "76789012", email: "billing@pccw.hk" },
+    { name: "Hongkong Electric", normalizedName: "hongkong electric", city: "North Point", taxId: "77890123", email: "accounts@hkelectric.hk" },
+    { name: "Wing Kee Hardware", normalizedName: "wing kee hardware", city: "Mong Kok", taxId: "78901234", email: "info@wingkee.hk", fpsProxyType: "mobile", fpsProxyId: "+85264567890" },
+    { name: "Cathay Office Furniture", normalizedName: "cathay office furniture", city: "San Po Kong", taxId: "79012345", email: "sales@cathayoffice.hk", fpsProxyType: "fpsid", fpsProxyId: "3011477" },
+    { name: "Maxim's Catering Supplies", normalizedName: "maxim's catering supplies", city: "Cheung Sha Wan", taxId: "80123456", email: "ap@maxims.hk" },
+  ]);
+  console.log("✓ suppliers: 10");
 
   // --- 6. Invoices (full lifecycle) ---------------------------------------
   async function makeInvoice(opts: {

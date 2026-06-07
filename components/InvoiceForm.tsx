@@ -35,7 +35,6 @@ const NEW_CUSTOMER = "__new__";
 const NO_CUSTOMER = "";
 const QUICK_TERMS = [0, 15, 30, 45];
 const STEPS = ["Details", "Line items", "Send"] as const;
-const LIGHT_KEY = "kashing-invoice-light";
 
 function emptyLine(): LineRow {
   return { description: "", details: "", unit: "", quantity: "1", price: "" };
@@ -66,9 +65,8 @@ export function InvoiceForm({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [profile, setProfile] = useState<DocProfile>(null);
   const [previewNumber, setPreviewNumber] = useState(existingNumber ?? "—");
-  const [light, setLight] = useState(false);
 
-  const [documentType, setDocumentType] = useState(initial?.documentType ?? "invoice");
+  const documentType = initial?.documentType ?? "invoice";
   const [customerSel, setCustomerSel] = useState<string>(initial?.customerId != null ? String(initial.customerId) : NO_CUSTOMER);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
@@ -104,7 +102,6 @@ export function InvoiceForm({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try { setLight(localStorage.getItem(LIGHT_KEY) === "1"); } catch {}
     (async () => {
       const [cRes, pRes] = await Promise.all([fetch("/api/customers"), fetch("/api/business-profile")]);
       if (cRes.ok) setCustomers((await cRes.json()).customers ?? []);
@@ -118,14 +115,6 @@ export function InvoiceForm({
       }
     })();
   }, [mode]);
-
-  function toggleLight() {
-    setLight((v) => {
-      const next = !v;
-      try { localStorage.setItem(LIGHT_KEY, next ? "1" : "0"); } catch {}
-      return next;
-    });
-  }
 
   const lineAmounts = useMemo(() => lines.map((l) => lineAmountCents(l.quantity, inputToCents(l.price))), [lines]);
   const subtotalCents = lineAmounts.reduce((s, a) => s + a, 0);
@@ -277,17 +266,6 @@ export function InvoiceForm({
 
         {step === 0 && (
           <div className="space-y-5">
-            <Section label="Document type">
-              <div className="grid grid-cols-2 gap-2">
-                {(["invoice", "credit_note"] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => setDocumentType(t)}
-                    className={`px-3 py-2 rounded-lg text-sm border ${documentType === t ? "bg-foreground text-background border-foreground" : "border-line text-muted hover:text-foreground"}`}>
-                    {t === "invoice" ? "Invoice" : "Credit note"}
-                  </button>
-                ))}
-              </div>
-            </Section>
-
             <Section label="Issuer">
               <div className="card p-3 text-sm">
                 <div className="font-medium">{profile?.name ?? "—"}</div>
@@ -466,12 +444,7 @@ export function InvoiceForm({
       {/* ── Live preview pane ──────────────────────────────────────── */}
       <div className="flex-1 min-w-0">
         <div className="lg:sticky lg:top-6">
-          <div className="flex justify-end mb-2">
-            <button type="button" onClick={toggleLight} className="btn btn-ghost text-xs">
-              {light ? "◑ White document" : "◐ Dark document"}
-            </button>
-          </div>
-          <InvoiceDocument invoice={previewDoc} lines={previewLines} profile={profile} customer={previewCustomer} light={light} />
+          <InvoiceDocument invoice={previewDoc} lines={previewLines} profile={profile} customer={previewCustomer} />
         </div>
       </div>
     </div>
